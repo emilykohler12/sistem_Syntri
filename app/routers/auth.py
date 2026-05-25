@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
@@ -40,24 +41,27 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @router.post("/login", response_model=schemas.Token)
-def login(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
     """Inicia sesión y devuelve un JWT"""
     
-    logger.info(f"Intento de login → Usuario: {user_data.username}")
+    logger.info(f"Intento de login → Usuario: {form_data.username}")
     
     user = db.query(models.User).filter(
-        models.User.username == user_data.username
+        models.User.username == form_data.username
     ).first()
     
     if not user:
-        logger.warning(f"Login fallido → El usuario '{user_data.username}' no existe en el sistema")
+        logger.warning(f"Login fallido → El usuario '{form_data.username}' no existe en el sistema")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos"
         )
     
-    if not verify_password(user_data.password, user.password):
-        logger.warning(f"Login fallido → Contraseña incorrecta para el usuario '{user_data.username}'")
+    if not verify_password(form_data.password, user.password):
+        logger.warning(f"Login fallido → Contraseña incorrecta para el usuario '{form_data.username}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos"

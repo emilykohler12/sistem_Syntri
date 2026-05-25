@@ -1,13 +1,12 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 
-# DTO de entrada para registro y login
+# DTOs de usuarios
 class UserCreate(BaseModel):
     username: str
     password: str
 
-# DTO de salida cuando se devuelve un usuario
-# Nunca incluimos el password en la respuesta
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -16,7 +15,28 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# DTO de salida para el login
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+# DTOs de mensajes
+class MessageCreate(BaseModel):
+    content: str
+    destinations: List[str]
+
+class DeliveryResponse(BaseModel):
+    service: str
+    status: str
+    provider_response: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+class MessageResponse(BaseModel):
+    id: int
+    content: str
+    created_at: datetime
+    deliveries: List[DeliveryResponse]
+
+    class Config:
+        from_attributes = True
