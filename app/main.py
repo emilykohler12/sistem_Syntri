@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from app.database import engine, Base
 from app.routers import auth
 from app.routers import messages
+from app.routers import admin
 import logging
 import time
 
@@ -23,6 +24,7 @@ app = FastAPI(
 
 app.include_router(auth.router)
 app.include_router(messages.router)
+app.include_router(admin.router)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

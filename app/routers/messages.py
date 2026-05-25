@@ -7,6 +7,8 @@ from app import models, schemas
 from app.auth import get_current_user
 from app.services.slack_service import SlackService
 from app.services.discord_service import DiscordService
+from typing import Optional
+from fastapi import Query
 import logging
 
 logger = logging.getLogger(__name__)
@@ -112,3 +114,52 @@ def send_message(
             for d in deliveries
         ]
     )
+@router.get("/", response_model=list)
+def get_my_messages(
+    status: Optional[str] = Query(None, description="Filtrar por estado: success, pending, failed"),
+    service: Optional[str] = Query(None, description="Filtrar por servicio: slack, discord"),
+    from_date: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Usuario: lista sus propios mensajes con filtros"""
+    
+    logger.info(f"Usuario '{current_user.username}' consultando sus mensajes")
+    
+    query = db.query(models.Message).filter(
+        models.Message.user_id == current_user.id
+    )
+    
+    if from_date:
+        query = query.filter(models.Message.created_at >= from_date)
+    if to_date:
+        query = query.filter(models.Message.created_at <= to_date)
+    
+    if service or status:
+        query = query.join(models.MessageDelivery)
+        if service:
+            query = query.filter(models.MessageDelivery.service == service)
+        if status:
+            query = query.filter(models.MessageDelivery.status == status)
+    
+    messages = query.all()
+    
+    result = []
+    for msg in messages:
+        result.append({
+            "id": msg.id,
+            "content": msg.content,
+            "created_at": msg.created_at,
+            "deliveries": [
+                {
+                    "service": d.service,
+                    "status": d.status,
+                    "provider_response": d.provider_response
+                }
+                for d in msg.deliveries
+            ]
+        })
+    
+    logger.info(f"Usuario '{current_user.username}' obtuvo {len(result)} mensajes")
+    return result
