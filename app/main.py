@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import engine, Base, SessionLocal
 from app.routers import auth, messages, admin
 from jose import JWTError, jwt
@@ -25,11 +27,41 @@ app = FastAPI(
     version="1.0.0"
 )
 
-app.include_router(auth.router)
-app.include_router(messages.router)
-app.include_router(admin.router)
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# Agregá origins de producción acá cuando tengas frontend:
+# ALLOWED_ORIGINS = ["https://tu-frontend.com"]
+ALLOWED_ORIGINS = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+]
 
-# Rutas que no requieren token
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+
+# ── Headers de seguridad ──────────────────────────────────────────────────────
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+
+# ── Rutas públicas ────────────────────────────────────────────────────────────
 PUBLIC_ROUTES = {
     "/",
     "/docs",
@@ -40,13 +72,9 @@ PUBLIC_ROUTES = {
 }
 
 
+# ── Middleware de autenticación ───────────────────────────────────────────────
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """
-    Middleware de autenticación:
-    - Rutas públicas: pasan sin token
-    - Rutas protegidas: decodifica JWT, consulta BD, adjunta user y rol en request.state
-    """
     if request.url.path in PUBLIC_ROUTES:
         request.state.user = None
         request.state.role = None
@@ -72,14 +100,12 @@ async def auth_middleware(request: Request, call_next):
         username: str = payload.get("sub")
         if not username:
             raise JWTError("sin subject")
-
     except JWTError:
         return JSONResponse(
             status_code=401,
             content={"detail": "Token inválido o expirado"}
         )
 
-    # Consultar usuario en BD y adjuntarlo al request
     db = SessionLocal()
     try:
         from app import models
@@ -90,18 +116,17 @@ async def auth_middleware(request: Request, call_next):
                 content={"detail": "Usuario no encontrado"}
             )
         request.state.user = user
-        request.state.role = user.role_name   # "user" o "admin" (leído de la tabla roles via FK)
+        request.state.role = user.role_name
     finally:
         db.close()
 
     return await call_next(request)
 
 
+# ── Middleware de logging ─────────────────────────────────────────────────────
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Middleware de logging: registra método, ruta, IP, token, código y duración."""
     inicio = time.time()
-
     ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "desconocida")
     tiene_token = "Sí" if request.headers.get("authorization") else "No"
 
@@ -109,8 +134,6 @@ async def log_requests(request: Request, call_next):
 
     duracion = round((time.time() - inicio) * 1000, 2)
     codigo = response.status_code
-
-    # user_id desde request.state si el middleware de auth ya lo adjuntó
     user_info = f"Usuario: {request.state.user.username}" if getattr(request.state, "user", None) else "Usuario: anónimo"
 
     log = (
@@ -132,6 +155,11 @@ async def log_requests(request: Request, call_next):
         logger.info(f"OK → {log}")
 
     return response
+
+
+app.include_router(auth.router)
+app.include_router(messages.router)
+app.include_router(admin.router)
 
 
 @app.get("/")
