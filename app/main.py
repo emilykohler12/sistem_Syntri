@@ -1,12 +1,9 @@
 from fastapi import FastAPI, Request
 from app.database import engine, Base
-from app.routers import auth
-from app.routers import messages
-from app.routers import admin
+from app.routers import auth, messages, admin
 import logging
 import time
 
-# Configuración del logger en español
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -26,25 +23,42 @@ app.include_router(auth.router)
 app.include_router(messages.router)
 app.include_router(admin.router)
 
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     inicio = time.time()
-    logger.info(f"Pedido entrante → Método: {request.method} | Ruta: {request.url.path}")
-    
+
+    # IP origen (considera proxies)
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "desconocida")
+
+    # user_id desde el header Authorization si existe (sin decodificar el JWT acá)
+    # El user_id real lo loguea cada endpoint; acá solo indicamos si hay token o no
+    tiene_token = "Sí" if request.headers.get("authorization") else "No"
+
     response = await call_next(request)
-    
+
     duracion = round((time.time() - inicio) * 1000, 2)
-    
-    if response.status_code >= 500:
-        logger.error(f"Error del servidor → Código: {response.status_code} | Ruta: {request.url.path} | Duración: {duracion}ms")
-    elif response.status_code >= 400:
-        logger.warning(f"Error del cliente → Código: {response.status_code} | Ruta: {request.url.path} | Duración: {duracion}ms")
+    codigo = response.status_code
+
+    log = (
+        f"Método: {request.method} | "
+        f"Ruta: {request.url.path} | "
+        f"IP: {ip} | "
+        f"Token: {tiene_token} | "
+        f"Código: {codigo} | "
+        f"Duración: {duracion}ms"
+    )
+
+    if codigo >= 500:
+        logger.error(f"Error del servidor → {log}")
+    elif codigo >= 400:
+        logger.warning(f"Error del cliente → {log}")
     else:
-        logger.info(f"Respuesta exitosa → Código: {response.status_code} | Ruta: {request.url.path} | Duración: {duracion}ms")
-    
+        logger.info(f"OK → {log}")
+
     return response
+
 
 @app.get("/")
 def root():
-    logger.info("Acceso a la raíz de la API")
     return {"message": "Sistem Syntri API"}
