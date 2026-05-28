@@ -71,14 +71,25 @@ def send_message(
 
     logger.info(f"Pedido de envío → Usuario: {current_user.username} | Destinos: {message_data.destinations}")
 
-    # Verificar destinos válidos
-    invalid_destinations = [d for d in message_data.destinations if d not in AVAILABLE_SERVICES]
-    if invalid_destinations:
-        logger.warning(f"Destinos inválidos → {invalid_destinations} | Usuario: {current_user.username}")
+    # Validar que el contenido no esté vacío ni sea solo espacios
+    if not message_data.content or not message_data.content.strip():
+        logger.warning(f"Contenido vacío → Usuario: {current_user.username}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Destinos no válidos: {invalid_destinations}. Disponibles: {list(AVAILABLE_SERVICES.keys())}"
+            detail="El mensaje no puede estar vacío."
         )
+
+    # Validar que se envíe al menos un destino y que ninguno sea string vacío
+    destinos_limpios = [d.strip() for d in message_data.destinations if d.strip()]
+    if not destinos_limpios:
+        logger.warning(f"Lista de destinos vacía o inválida → Usuario: {current_user.username}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Debe indicar al menos un destino válido. Disponibles: {list(AVAILABLE_SERVICES.keys())}"
+        )
+    message_data.destinations = destinos_limpios
+
+
 
     # Verificar límite e incrementar contador (atómico)
     limit = _get_effective_limit(current_user, db)
@@ -98,10 +109,13 @@ def send_message(
     # Enviar a cada destino
     deliveries = []
     for destination in message_data.destinations:
-        service = AVAILABLE_SERVICES[destination]()
-        logger.info(f"Enviando a {destination} → Usuario: {current_user.username}")
-
-        result = service.send(message=message_data.content, username=current_user.username)
+        if destination not in AVAILABLE_SERVICES:
+            logger.warning(f"Destino desconocido '{destination}' → registrado como failed | Usuario: {current_user.username}")
+            result = {"status": "failed", "provider_response": f"Destino '{destination}' no reconocido"}
+        else:
+            service = AVAILABLE_SERVICES[destination]()
+            logger.info(f"Enviando a {destination} → Usuario: {current_user.username}")
+            result = service.send(message=message_data.content, username=current_user.username)
 
         delivery = models.MessageDelivery(
             message_id=new_message.id,
