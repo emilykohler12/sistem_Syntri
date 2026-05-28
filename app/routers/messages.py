@@ -106,27 +106,43 @@ def send_message(
 
     logger.info(f"Mensaje guardado → ID: {new_message.id} | Usuario: {current_user.username}")
 
-    # Enviar a cada destino
+    # Enviar a cada destino (cada uno es independiente, un fallo no bloquea los demás)
     deliveries = []
     for destination in message_data.destinations:
-        if destination not in AVAILABLE_SERVICES:
-            logger.warning(f"Destino desconocido '{destination}' → registrado como failed | Usuario: {current_user.username}")
-            result = {"status": "failed", "provider_response": f"Destino '{destination}' no reconocido"}
-        else:
-            service = AVAILABLE_SERVICES[destination]()
-            logger.info(f"Enviando a {destination} → Usuario: {current_user.username}")
-            result = service.send(message=message_data.content, username=current_user.username)
+        try:
+            if destination not in AVAILABLE_SERVICES:
+                logger.warning(f"Destino desconocido '{destination}' → registrado como failed | Usuario: {current_user.username}")
+                result = {"status": "failed", "provider_response": f"Destino '{destination}' no reconocido"}
+            else:
+                service = AVAILABLE_SERVICES[destination]()
+                logger.info(f"Enviando a {destination} → Usuario: {current_user.username}")
+                result = service.send(message=message_data.content, username=current_user.username)
 
-        delivery = models.MessageDelivery(
-            message_id=new_message.id,
-            service=destination,
-            status=result["status"],
-            provider_response=result["provider_response"]
-        )
-        db.add(delivery)
-        db.commit()
-        db.refresh(delivery)
-        deliveries.append(delivery)
+        except Exception as e:
+            logger.error(f"Error inesperado en '{destination}' → {str(e)} | Usuario: {current_user.username}")
+            result = {"status": "failed", "provider_response": f"Error inesperado: {str(e)}"}
+
+        try:
+            delivery = models.MessageDelivery(
+                message_id=new_message.id,
+                service=destination,
+                status=result["status"],
+                provider_response=result["provider_response"]
+            )
+            db.add(delivery)
+            db.commit()
+            db.refresh(delivery)
+            deliveries.append(delivery)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error al guardar delivery de '{destination}' → {str(e)}")
+            # Igual agregamos el delivery en memoria para incluirlo en la respuesta
+            deliveries.append(models.MessageDelivery(
+                message_id=new_message.id,
+                service=destination,
+                status="failed",
+                provider_response=f"Error al guardar: {str(e)}"
+            ))
 
         logger.info(f"Resultado → Servicio: {destination} | Estado: {result['status']} | Usuario: {current_user.username}")
 
