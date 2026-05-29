@@ -51,7 +51,7 @@ def test_enviar_mensaje_destino_string_vacio(client, user_token):
 # ── Envío exitoso ─────────────────────────────────────────────────────────────
 
 def test_enviar_mensaje_exitoso(client, user_token):
-    with patch("app.routers.messages._check_and_increment", return_value=1), \
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1), \
          patch("app.services.slack_service.SlackService.send", return_value=MOCK_SUCCESS), \
          patch("app.services.discord_service.DiscordService.send", return_value=MOCK_SUCCESS):
         response = client.post(
@@ -70,7 +70,7 @@ def test_enviar_mensaje_exitoso(client, user_token):
 
 def test_delivery_fallida_se_guarda(client, user_token):
     """Un fallo en el envío se registra como failed, no tira 500"""
-    with patch("app.routers.messages._check_and_increment", return_value=1), \
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1), \
          patch("app.services.slack_service.SlackService.send", return_value=MOCK_FAILED):
         response = client.post(
             "/api/v1/messages/",
@@ -83,7 +83,7 @@ def test_delivery_fallida_se_guarda(client, user_token):
 
 def test_destino_desconocido_se_guarda_como_failed(client, user_token):
     """Destino desconocido se guarda como failed sin bloquear la respuesta"""
-    with patch("app.routers.messages._check_and_increment", return_value=1):
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1):
         response = client.post(
             "/api/v1/messages/",
             json={"content": "Test destino raro", "destinations": ["telegram"]},
@@ -94,7 +94,7 @@ def test_destino_desconocido_se_guarda_como_failed(client, user_token):
 
 def test_fallo_en_un_destino_no_bloquea_el_otro(client, user_token):
     """Si slack falla, discord igual se intenta y viceversa"""
-    with patch("app.routers.messages._check_and_increment", return_value=1), \
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1), \
          patch("app.services.slack_service.SlackService.send", return_value=MOCK_FAILED), \
          patch("app.services.discord_service.DiscordService.send", return_value=MOCK_SUCCESS):
         response = client.post(
@@ -154,7 +154,7 @@ def test_limite_personalizado_por_usuario(client, user_token, admin_token):
 # ── Ver mensajes ──────────────────────────────────────────────────────────────
 
 def test_ver_mis_mensajes(client, user_token):
-    with patch("app.routers.messages._check_and_increment", return_value=1), \
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1), \
          patch("app.services.slack_service.SlackService.send", return_value=MOCK_SUCCESS):
         client.post(
             "/api/v1/messages/",

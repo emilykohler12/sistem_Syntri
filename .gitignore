@@ -1,4 +1,9 @@
 .env
+.env.production
+logs/
+*.db
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
+.vscode/

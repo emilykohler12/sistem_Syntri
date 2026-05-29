@@ -32,7 +32,7 @@ def test_admin_ve_metricas(client, admin_token):
 
 def test_metricas_incluyen_deliveries(client, admin_token, user_token):
     """Las métricas muestran deliveries exitosas y fallidas por usuario"""
-    with patch("app.routers.messages._check_and_increment", return_value=1), \
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1), \
          patch("app.services.slack_service.SlackService.send", return_value=MOCK_SUCCESS), \
          patch("app.services.discord_service.DiscordService.send", return_value=MOCK_FAILED):
         client.post(
@@ -47,7 +47,8 @@ def test_metricas_incluyen_deliveries(client, admin_token, user_token):
     testuser = next((u for u in users if u["username"] == "testuser"), None)
     assert testuser is not None
     assert testuser["deliveries"]["successful"] == 1
-    assert testuser["deliveries"]["failed"] == 1
+    # Con retry son 3 intentos fallidos (MAX_RETRIES=3)
+    assert testuser["deliveries"]["failed"] == 3
 
 def test_metricas_diarias(client, admin_token):
     """Métricas diarias devuelven estructura correcta"""
@@ -57,7 +58,7 @@ def test_metricas_diarias(client, admin_token):
 
 def test_success_rate(client, admin_token, user_token):
     """Verifica que successful + failed = total deliveries"""
-    with patch("app.routers.messages._check_and_increment", return_value=1), \
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1), \
          patch("app.services.slack_service.SlackService.send", return_value=MOCK_SUCCESS), \
          patch("app.services.discord_service.DiscordService.send", return_value=MOCK_FAILED):
         client.post(

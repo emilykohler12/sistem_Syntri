@@ -1,192 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from datetime import date
-import time
-from app.database import get_db
-from app import models, schemas
-from app.auth import get_current_user
-from app.services.slack_service import SlackService
-from app.services.discord_service import DiscordService
 from typing import Optional
 from fastapi import Query
-import logging
-
-logger = logging.getLogger(__name__)
+from app.database import get_db
+from app import schemas
+from app.auth import get_current_user
+from app.services.message_service import MessageService
+from app import models
 
 router = APIRouter(prefix="/api/v1/messages", tags=["Mensajes"])
-
-AVAILABLE_SERVICES = {
-    "slack": SlackService,
-    "discord": DiscordService,
-}
-
-
-def _get_effective_limit(user: models.User, db: Session) -> int:
-    """Devuelve el límite que aplica al usuario: personalizado o global."""
-    if user.daily_limit is not None:
-        return user.daily_limit
-    config = db.query(models.Config).filter(models.Config.id == 1).first()
-    return config.daily_message_limit if config else 100
-
-
-def _check_and_increment(user_id: int, limit: int, db: Session) -> int:
-    """
-    Verifica el límite y incrementa el contador de forma atómica con upsert.
-    Devuelve el conteo actualizado, o lanza 429 si ya se alcanzó el límite.
-    """
-    today = date.today()
-
-    # Primero chequeamos sin incrementar todavía
-    usage = db.query(models.DailyUsage).filter(
-        models.DailyUsage.user_id == user_id,
-        models.DailyUsage.usage_date == today
-    ).first()
-
-    current_count = usage.message_count if usage else 0
-
-    if current_count >= limit:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Límite diario de {limit} mensajes alcanzado. Volvé mañana."
-        )
-
-    # Upsert atómico: INSERT si no existe, UPDATE si existe
-    db.execute(text("""
-        INSERT INTO daily_usage (user_id, usage_date, message_count)
-        VALUES (:uid, :today, 1)
-        ON CONFLICT (user_id, usage_date)
-        DO UPDATE SET message_count = daily_usage.message_count + 1
-    """), {"uid": user_id, "today": today})
-
-    return current_count + 1
 
 
 @router.post("/", response_model=schemas.MessageResponse, status_code=201)
 def send_message(
     message_data: schemas.MessageCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user)
 ):
     """Envía un mensaje a múltiples plataformas"""
-
-    logger.info(f"Pedido de envío → Usuario: {current_user.username} | Destinos: {message_data.destinations}")
-
-    # Validar que el contenido no esté vacío ni sea solo espacios
-    if not message_data.content or not message_data.content.strip():
-        logger.warning(f"Contenido vacío → Usuario: {current_user.username}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El mensaje no puede estar vacío."
-        )
-
-    # Validar que se envíe al menos un destino y que ninguno sea string vacío
-    destinos_limpios = [d.strip() for d in message_data.destinations if d.strip()]
-    if not destinos_limpios:
-        logger.warning(f"Lista de destinos vacía o inválida → Usuario: {current_user.username}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Debe indicar al menos un destino válido. Disponibles: {list(AVAILABLE_SERVICES.keys())}"
-        )
-    message_data.destinations = destinos_limpios
-
-
-
-    # Verificar límite e incrementar contador (atómico)
-    limit = _get_effective_limit(current_user, db)
-    new_count = _check_and_increment(current_user.id, limit, db)
-
-    remaining = limit - new_count
-    logger.info(f"Rate limit → Usuario: {current_user.username} | Mensajes restantes hoy: {remaining}")
-
-    # Guardar el mensaje
-    new_message = models.Message(user_id=current_user.id, content=message_data.content)
-    db.add(new_message)
-    db.commit()
-    db.refresh(new_message)
-
-    logger.info(f"Mensaje guardado → ID: {new_message.id} | Usuario: {current_user.username}")
-
-    # Enviar a cada destino con retry (3 intentos, espera 1s entre cada uno)
-    MAX_RETRIES = 3
-    RETRY_DELAY = 1  # segundos entre intentos
-
-    deliveries = []
-    for destination in message_data.destinations:
-        if destination not in AVAILABLE_SERVICES:
-            logger.warning(f"Destino desconocido '{destination}' → registrado como failed | Usuario: {current_user.username}")
-            try:
-                delivery = models.MessageDelivery(
-                    message_id=new_message.id,
-                    service=destination,
-                    status="failed",
-                    provider_response=f"Destino '{destination}' no reconocido",
-                    attempt=1
-                )
-                db.add(delivery)
-                db.commit()
-                db.refresh(delivery)
-                deliveries.append(delivery)
-            except Exception as e:
-                db.rollback()
-                logger.error(f"Error al guardar delivery desconocido: {str(e)}")
-            continue
-
-        service = AVAILABLE_SERVICES[destination]()
-        last_result = None
-
-        for attempt in range(1, MAX_RETRIES + 1):
-            try:
-                logger.info(f"Enviando a {destination} → Intento {attempt}/{MAX_RETRIES} | Usuario: {current_user.username}")
-                result = service.send(message=message_data.content, username=current_user.username)
-            except Exception as e:
-                logger.error(f"Excepción en '{destination}' intento {attempt} → {str(e)}")
-                result = {"status": "failed", "provider_response": f"Error inesperado: {str(e)}"}
-
-            last_result = result
-
-            # Guardar cada intento en message_deliveries
-            try:
-                delivery = models.MessageDelivery(
-                    message_id=new_message.id,
-                    service=destination,
-                    status=result["status"],
-                    provider_response=result["provider_response"],
-                    attempt=attempt
-                )
-                db.add(delivery)
-                db.commit()
-                db.refresh(delivery)
-                deliveries.append(delivery)
-            except Exception as e:
-                db.rollback()
-                logger.error(f"Error al guardar delivery intento {attempt} de '{destination}': {str(e)}")
-
-            logger.info(f"Intento {attempt} → Servicio: {destination} | Estado: {result['status']} | Usuario: {current_user.username}")
-
-            if result["status"] == "success":
-                break  # Exitó, no hace falta reintentar
-
-            if attempt < MAX_RETRIES:
-                logger.info(f"Reintentando '{destination}' en {RETRY_DELAY}s...")
-                time.sleep(RETRY_DELAY)
-
-        if last_result and last_result["status"] == "failed":
-            logger.warning(f"Todos los intentos fallaron para '{destination}' | Usuario: {current_user.username}")
-
-    return schemas.MessageResponse(
-        id=new_message.id,
-        content=new_message.content,
-        created_at=new_message.created_at,
-        deliveries=[
-            schemas.DeliveryResponse(
-                service=d.service,
-                status=d.status,
-                provider_response=d.provider_response,
-                attempt=d.attempt if hasattr(d, "attempt") else 1
-            )
-            for d in deliveries
-        ]
+    return MessageService(db).send(
+        content=message_data.content,
+        destinations=message_data.destinations,
+        current_user=current_user
     )
 
 
@@ -197,38 +32,9 @@ def get_my_messages(
     from_date: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user)
 ):
     """Usuario: lista sus propios mensajes con filtros"""
-
-    logger.info(f"Usuario '{current_user.username}' consultando sus mensajes")
-
-    query = db.query(models.Message).filter(models.Message.user_id == current_user.id)
-
-    if from_date:
-        query = query.filter(models.Message.created_at >= from_date)
-    if to_date:
-        query = query.filter(models.Message.created_at <= to_date)
-    if service or status:
-        query = query.join(models.MessageDelivery)
-        if service:
-            query = query.filter(models.MessageDelivery.service == service)
-        if status:
-            query = query.filter(models.MessageDelivery.status == status)
-
-    messages = query.all()
-
-    result = []
-    for msg in messages:
-        result.append({
-            "id": msg.id,
-            "content": msg.content,
-            "created_at": msg.created_at,
-            "deliveries": [
-                {"service": d.service, "status": d.status, "provider_response": d.provider_response}
-                for d in msg.deliveries
-            ]
-        })
-
-    logger.info(f"Usuario '{current_user.username}' obtuvo {len(result)} mensajes")
-    return result
+    return MessageService(db).get_user_messages(
+        current_user.id, status, service, from_date, to_date
+    )
