@@ -4,9 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.database import Base, get_db
+import app.main as main_module
 
-# Base de datos en memoria solo para tests
-# No toca la base de datos real
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
 engine = create_engine(
@@ -16,63 +15,73 @@ engine = create_engine(
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def override_get_db():
-    """Reemplaza la base de datos real con la de tests"""
     db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
 
+
 @pytest.fixture(autouse=True)
 def setup_database():
-    """Crea las tablas antes de cada test y las borra después"""
     Base.metadata.create_all(bind=engine)
+
+    db = TestingSessionLocal()
+    from app import models
+    if not db.query(models.Role).first():
+        db.add(models.Role(name="user", description="Usuario estándar"))
+        db.add(models.Role(name="admin", description="Administrador"))
+        db.commit()
+    if not db.query(models.Config).first():
+        db.add(models.Config(id=1, daily_message_limit=100))
+        db.commit()
+    db.close()
     yield
     Base.metadata.drop_all(bind=engine)
 
+
 @pytest.fixture
 def client():
-    """Cliente de prueba que simula pedidos HTTP"""
+    # Override get_db para endpoints
     app.dependency_overrides[get_db] = override_get_db
+    # Override SessionLocal para el middleware de auth
+    main_module.SessionLocal = TestingSessionLocal
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+    # Restaurar SessionLocal real
+    from app.database import SessionLocal as RealSessionLocal
+    main_module.SessionLocal = RealSessionLocal
+
 
 @pytest.fixture
 def admin_user(client):
-    """Crea un usuario admin para tests"""
-    from app.database import get_db
     from app import models
     from app.auth import hash_password
-    
     db = TestingSessionLocal()
+    admin_role = db.query(models.Role).filter(models.Role.name == "admin").first()
     admin = models.User(
         username="admin_test",
         password=hash_password("admin123"),
-        role="admin"
+        role_id=admin_role.id
     )
     db.add(admin)
     db.commit()
     db.close()
     return {"username": "admin_test", "password": "admin123"}
 
+
 @pytest.fixture
 def user_token(client):
-    """Registra un usuario y devuelve su token"""
-    client.post("/api/v1/auth/register", json={
-        "username": "testuser",
-        "password": "test123"
-    })
-    response = client.post("/api/v1/auth/login", data={
-        "username": "testuser",
-        "password": "test123"
-    })
+    client.post("/api/v1/auth/register", json={"username": "testuser", "password": "test123"})
+    response = client.post("/api/v1/auth/login", data={"username": "testuser", "password": "test123"})
     return response.json()["access_token"]
+
 
 @pytest.fixture
 def admin_token(client, admin_user):
-    """Devuelve el token del admin"""
     response = client.post("/api/v1/auth/login", data={
         "username": admin_user["username"],
         "password": admin_user["password"]

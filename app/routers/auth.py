@@ -41,7 +41,7 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     logger.info(f"Registro exitoso → Usuario '{new_user.username}' creado con rol '{new_user.role_name}' | ID: {new_user.id}")
-    return new_user
+    return schemas.UserResponse.from_orm_user(new_user)
 
 @router.post("/login", response_model=schemas.Token)
 def login(

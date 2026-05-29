@@ -6,42 +6,35 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Tests de hasheo de contraseñas
+# ── Hasheo ────────────────────────────────────────────────────────────────────
+
 def test_hash_password_genera_hash_diferente_al_original():
-    """La contraseña hasheada no debe ser igual a la original"""
     password = "mipassword123"
-    hashed = hash_password(password)
-    assert password != hashed
+    assert password != hash_password(password)
 
 def test_verify_password_correcta():
-    """Verificar una contraseña correcta debe devolver True"""
     password = "mipassword123"
-    hashed = hash_password(password)
-    assert verify_password(password, hashed) == True
+    assert verify_password(password, hash_password(password)) == True
 
 def test_verify_password_incorrecta():
-    """Verificar una contraseña incorrecta debe devolver False"""
-    password = "mipassword123"
-    hashed = hash_password(password)
+    hashed = hash_password("mipassword123")
     assert verify_password("otrapassword", hashed) == False
 
-# Tests de JWT
+# ── JWT ───────────────────────────────────────────────────────────────────────
+
 def test_create_access_token_genera_token():
-    """El token generado no debe estar vacío"""
     token = create_access_token(data={"sub": "testuser", "role": "user"})
-    assert token is not None
-    assert len(token) > 0
+    assert token is not None and len(token) > 0
 
 def test_create_access_token_contiene_datos_correctos():
-    """El token debe contener el username y rol correctos"""
     token = create_access_token(data={"sub": "testuser", "role": "user"})
     payload = jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("ALGORITHM")])
     assert payload["sub"] == "testuser"
     assert payload["role"] == "user"
 
-# Tests de endpoints de autenticación
+# ── Registro ──────────────────────────────────────────────────────────────────
+
 def test_registro_exitoso(client):
-    """Registrar un usuario nuevo debe devolver 201"""
     response = client.post("/api/v1/auth/register", json={
         "username": "nuevo_usuario",
         "password": "password123"
@@ -49,52 +42,64 @@ def test_registro_exitoso(client):
     assert response.status_code == 201
     data = response.json()
     assert data["username"] == "nuevo_usuario"
-    assert data["role"] == "user"
+    assert data["role"]["name"] == "user"
     assert "password" not in data
 
 def test_registro_usuario_duplicado(client):
-    """Registrar un usuario que ya existe debe devolver 409"""
-    client.post("/api/v1/auth/register", json={
-        "username": "usuario_dup",
-        "password": "password123"
-    })
-    response = client.post("/api/v1/auth/register", json={
-        "username": "usuario_dup",
-        "password": "otrapassword"
-    })
+    client.post("/api/v1/auth/register", json={"username": "dup", "password": "pass123"})
+    response = client.post("/api/v1/auth/register", json={"username": "dup", "password": "otrapass"})
     assert response.status_code == 409
 
+# ── Login ─────────────────────────────────────────────────────────────────────
+
 def test_login_exitoso(client):
-    """Login con credenciales correctas debe devolver token"""
-    client.post("/api/v1/auth/register", json={
-        "username": "usuario_login",
-        "password": "password123"
-    })
-    response = client.post("/api/v1/auth/login", data={
-        "username": "usuario_login",
-        "password": "password123"
-    })
+    client.post("/api/v1/auth/register", json={"username": "usuario_login", "password": "password123"})
+    response = client.post("/api/v1/auth/login", data={"username": "usuario_login", "password": "password123"})
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
     assert data["token_type"] == "bearer"
 
 def test_login_password_incorrecta(client):
-    """Login con contraseña incorrecta debe devolver 401"""
-    client.post("/api/v1/auth/register", json={
-        "username": "usuario_login2",
-        "password": "password123"
-    })
-    response = client.post("/api/v1/auth/login", data={
-        "username": "usuario_login2",
-        "password": "passwordincorrecta"
-    })
+    client.post("/api/v1/auth/register", json={"username": "usuario_login2", "password": "password123"})
+    response = client.post("/api/v1/auth/login", data={"username": "usuario_login2", "password": "incorrecta"})
     assert response.status_code == 401
 
 def test_login_usuario_inexistente(client):
-    """Login con usuario que no existe debe devolver 401"""
-    response = client.post("/api/v1/auth/login", data={
-        "username": "noexiste",
-        "password": "password123"
-    })
+    response = client.post("/api/v1/auth/login", data={"username": "noexiste", "password": "pass"})
     assert response.status_code == 401
+
+def test_login_usuario_cancelado(client, admin_user, admin_token):
+    """Un usuario cancelado no puede iniciar sesión"""
+    client.post("/api/v1/auth/register", json={"username": "usuario_cancelado", "password": "pass123"})
+    client.patch(
+        "/api/v1/admin/users/usuario_cancelado/cancel",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    response = client.post("/api/v1/auth/login", data={"username": "usuario_cancelado", "password": "pass123"})
+    assert response.status_code == 403
+
+# ── Middleware de autenticación ───────────────────────────────────────────────
+
+def test_ruta_protegida_sin_token(client):
+    """Acceder a ruta protegida sin token devuelve 401"""
+    response = client.get("/api/v1/messages/")
+    assert response.status_code == 401
+
+def test_ruta_protegida_con_token_invalido(client):
+    """Token inválido devuelve 401"""
+    response = client.get(
+        "/api/v1/messages/",
+        headers={"Authorization": "Bearer tokeninvalido"}
+    )
+    assert response.status_code == 401
+
+def test_rutas_publicas_sin_token(client):
+    """Login y register son accesibles sin token (el middleware no bloquea con 401 por falta de token)"""
+    # Register debe devolver 201 sin necesitar token
+    r_register = client.post("/api/v1/auth/register", json={"username": "usuario_publico", "password": "pass123"})
+    assert r_register.status_code == 201
+
+    # Login con credenciales válidas debe devolver 200 sin token
+    r_login = client.post("/api/v1/auth/login", data={"username": "usuario_publico", "password": "pass123"})
+    assert r_login.status_code == 200
