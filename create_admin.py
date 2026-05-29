@@ -4,7 +4,6 @@ from app.auth import hash_password
 
 db = SessionLocal()
 
-# Verificamos que no exista ya
 existing = db.query(models.User).filter(
     models.User.username == "admin"
 ).first()
@@ -12,10 +11,11 @@ existing = db.query(models.User).filter(
 if existing:
     print("El usuario admin ya existe")
 else:
+    admin_role = db.query(models.Role).filter(models.Role.name == "admin").first()
     admin = models.User(
         username="admin",
         password=hash_password("admin123"),
-        role="admin"
+        role_id=admin_role.id
     )
     db.add(admin)
     db.commit()
