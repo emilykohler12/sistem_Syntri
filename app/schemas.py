@@ -52,6 +52,7 @@ class DeliveryResponse(BaseModel):
     service: str
     status: str
     provider_response: Optional[str] = None
+    attempt: int = 1
 
 class MessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

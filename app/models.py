@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, event
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, Index, UniqueConstraint, event
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -26,7 +26,6 @@ def seed_roles(target, connection, **kwargs):
 
 
 class Config(Base):
-    """Configuración global del sistema. Siempre tiene una sola fila (id=1)."""
     __tablename__ = "config"
 
     id = Column(Integer, primary_key=True, default=1)
@@ -42,19 +41,17 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, nullable=False)
+    username = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, nullable=False)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
-    # NULL = usa el límite global de la tabla config
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     daily_limit = Column(Integer, nullable=True)
-    is_active = Column(Integer, nullable=False, default=1)  # 1 = activo, 0 = cancelado
+    is_active = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, server_default=func.now())
 
     role_rel = relationship("Role", back_populates="users")
     messages = relationship("Message", back_populates="user")
     daily_usage = relationship("DailyUsage", back_populates="user")
 
-    # ── Helpers de permisos ──────────────────────────────────────────────────
     @property
     def role_name(self) -> str:
         return self.role_rel.name if self.role_rel else "user"
@@ -68,8 +65,11 @@ class User(Base):
 
 
 class DailyUsage(Base):
-    """Contador de mensajes por usuario por día."""
     __tablename__ = "daily_usage"
+    __table_args__ = (
+        UniqueConstraint("user_id", "usage_date", name="uq_daily_usage_user_date"),
+        Index("ix_daily_usage_user_date", "user_id", "usage_date"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -80,12 +80,11 @@ class DailyUsage(Base):
 
 
 class LimitAudit(Base):
-    """Auditoría: registra cada vez que un admin cambia un límite."""
     __tablename__ = "limit_audit"
 
     id = Column(Integer, primary_key=True, index=True)
     changed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    target_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # NULL = cambio global
+    target_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     old_limit = Column(Integer, nullable=False)
     new_limit = Column(Integer, nullable=False)
     changed_at = Column(DateTime, server_default=func.now())
@@ -93,6 +92,10 @@ class LimitAudit(Base):
 
 class Message(Base):
     __tablename__ = "messages"
+    __table_args__ = (
+        Index("ix_messages_user_id", "user_id"),
+        Index("ix_messages_created_at", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
@@ -105,11 +108,16 @@ class Message(Base):
 
 class MessageDelivery(Base):
     __tablename__ = "message_deliveries"
+    __table_args__ = (
+        Index("ix_deliveries_message_id", "message_id"),
+        Index("ix_deliveries_status", "status"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     message_id = Column(Integer, ForeignKey("messages.id"))
     service = Column(String, nullable=False)
     status = Column(String, default="pending")
     provider_response = Column(Text)
+    attempt = Column(Integer, nullable=False, default=1)  # número de intento (1, 2, 3)
 
     message = relationship("Message", back_populates="deliveries")

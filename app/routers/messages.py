@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import date
+import time
 from app.database import get_db
 from app import models, schemas
 from app.auth import get_current_user
@@ -106,52 +107,84 @@ def send_message(
 
     logger.info(f"Mensaje guardado → ID: {new_message.id} | Usuario: {current_user.username}")
 
-    # Enviar a cada destino (cada uno es independiente, un fallo no bloquea los demás)
+    # Enviar a cada destino con retry (3 intentos, espera 1s entre cada uno)
+    MAX_RETRIES = 3
+    RETRY_DELAY = 1  # segundos entre intentos
+
     deliveries = []
     for destination in message_data.destinations:
-        try:
-            if destination not in AVAILABLE_SERVICES:
-                logger.warning(f"Destino desconocido '{destination}' → registrado como failed | Usuario: {current_user.username}")
-                result = {"status": "failed", "provider_response": f"Destino '{destination}' no reconocido"}
-            else:
-                service = AVAILABLE_SERVICES[destination]()
-                logger.info(f"Enviando a {destination} → Usuario: {current_user.username}")
+        if destination not in AVAILABLE_SERVICES:
+            logger.warning(f"Destino desconocido '{destination}' → registrado como failed | Usuario: {current_user.username}")
+            try:
+                delivery = models.MessageDelivery(
+                    message_id=new_message.id,
+                    service=destination,
+                    status="failed",
+                    provider_response=f"Destino '{destination}' no reconocido",
+                    attempt=1
+                )
+                db.add(delivery)
+                db.commit()
+                db.refresh(delivery)
+                deliveries.append(delivery)
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error al guardar delivery desconocido: {str(e)}")
+            continue
+
+        service = AVAILABLE_SERVICES[destination]()
+        last_result = None
+
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                logger.info(f"Enviando a {destination} → Intento {attempt}/{MAX_RETRIES} | Usuario: {current_user.username}")
                 result = service.send(message=message_data.content, username=current_user.username)
+            except Exception as e:
+                logger.error(f"Excepción en '{destination}' intento {attempt} → {str(e)}")
+                result = {"status": "failed", "provider_response": f"Error inesperado: {str(e)}"}
 
-        except Exception as e:
-            logger.error(f"Error inesperado en '{destination}' → {str(e)} | Usuario: {current_user.username}")
-            result = {"status": "failed", "provider_response": f"Error inesperado: {str(e)}"}
+            last_result = result
 
-        try:
-            delivery = models.MessageDelivery(
-                message_id=new_message.id,
-                service=destination,
-                status=result["status"],
-                provider_response=result["provider_response"]
-            )
-            db.add(delivery)
-            db.commit()
-            db.refresh(delivery)
-            deliveries.append(delivery)
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Error al guardar delivery de '{destination}' → {str(e)}")
-            # Igual agregamos el delivery en memoria para incluirlo en la respuesta
-            deliveries.append(models.MessageDelivery(
-                message_id=new_message.id,
-                service=destination,
-                status="failed",
-                provider_response=f"Error al guardar: {str(e)}"
-            ))
+            # Guardar cada intento en message_deliveries
+            try:
+                delivery = models.MessageDelivery(
+                    message_id=new_message.id,
+                    service=destination,
+                    status=result["status"],
+                    provider_response=result["provider_response"],
+                    attempt=attempt
+                )
+                db.add(delivery)
+                db.commit()
+                db.refresh(delivery)
+                deliveries.append(delivery)
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error al guardar delivery intento {attempt} de '{destination}': {str(e)}")
 
-        logger.info(f"Resultado → Servicio: {destination} | Estado: {result['status']} | Usuario: {current_user.username}")
+            logger.info(f"Intento {attempt} → Servicio: {destination} | Estado: {result['status']} | Usuario: {current_user.username}")
+
+            if result["status"] == "success":
+                break  # Exitó, no hace falta reintentar
+
+            if attempt < MAX_RETRIES:
+                logger.info(f"Reintentando '{destination}' en {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+
+        if last_result and last_result["status"] == "failed":
+            logger.warning(f"Todos los intentos fallaron para '{destination}' | Usuario: {current_user.username}")
 
     return schemas.MessageResponse(
         id=new_message.id,
         content=new_message.content,
         created_at=new_message.created_at,
         deliveries=[
-            schemas.DeliveryResponse(service=d.service, status=d.status, provider_response=d.provider_response)
+            schemas.DeliveryResponse(
+                service=d.service,
+                status=d.status,
+                provider_response=d.provider_response,
+                attempt=d.attempt if hasattr(d, "attempt") else 1
+            )
             for d in deliveries
         ]
     )
