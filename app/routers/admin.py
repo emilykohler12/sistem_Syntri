@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 from app.database import get_db
 from app import models
@@ -75,7 +75,7 @@ def get_metrics(
     db: Session = Depends(get_db),
     current_user = Depends(require_admin)
 ):
-    """Admin: métricas por usuario usando límites reales (sin hardcodeo)"""
+    """Admin: métricas por usuario: mensajes, deliveries, límites y estado"""
     logger.info(f"Admin '{current_user.username}' consultando métricas")
 
     users = db.query(models.User).all()
@@ -95,18 +95,90 @@ def get_metrics(
         ).first()
         messages_today = usage.message_count if usage else 0
 
+        total_deliveries = db.query(func.count(models.MessageDelivery.id)).join(
+            models.Message
+        ).filter(models.Message.user_id == user.id).scalar()
+
+        successful_deliveries = db.query(func.count(models.MessageDelivery.id)).join(
+            models.Message
+        ).filter(
+            models.Message.user_id == user.id,
+            models.MessageDelivery.status == "success"
+        ).scalar()
+
+        failed_deliveries = db.query(func.count(models.MessageDelivery.id)).join(
+            models.Message
+        ).filter(
+            models.Message.user_id == user.id,
+            models.MessageDelivery.status == "failed"
+        ).scalar()
+
         metrics.append({
             "user_id": user.id,
             "username": user.username,
             "role": user.role_name,
+            "is_active": bool(user.is_active),
             "daily_limit": limit,
             "total_messages": total_messages,
             "messages_today": messages_today,
-            "remaining_today": max(0, limit - messages_today)
+            "remaining_today": max(0, limit - messages_today),
+            "deliveries": {
+                "total": total_deliveries,
+                "successful": successful_deliveries,
+                "failed": failed_deliveries,
+            }
         })
 
     logger.info(f"Admin '{current_user.username}' obtuvo métricas de {len(metrics)} usuarios")
     return metrics
+
+
+@router.get("/metrics/daily")
+def get_daily_metrics(
+    from_date: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin)
+):
+    """Admin: total de mensajes y deliveries por día"""
+    logger.info(f"Admin '{current_user.username}' consultando métricas diarias")
+
+    query = db.query(
+        func.date(models.Message.created_at).label("dia"),
+        func.count(models.Message.id).label("total_mensajes")
+    ).group_by(func.date(models.Message.created_at))
+
+    if from_date:
+        query = query.filter(models.Message.created_at >= from_date)
+    if to_date:
+        query = query.filter(models.Message.created_at <= to_date)
+
+    rows = query.order_by(func.date(models.Message.created_at).desc()).all()
+
+    result = []
+    for row in rows:
+        exitosas = db.query(func.count(models.MessageDelivery.id)).join(
+            models.Message
+        ).filter(
+            func.date(models.Message.created_at) == row.dia,
+            models.MessageDelivery.status == "success"
+        ).scalar()
+
+        fallidas = db.query(func.count(models.MessageDelivery.id)).join(
+            models.Message
+        ).filter(
+            func.date(models.Message.created_at) == row.dia,
+            models.MessageDelivery.status == "failed"
+        ).scalar()
+
+        result.append({
+            "dia": str(row.dia),
+            "total_mensajes": row.total_mensajes,
+            "deliveries_exitosas": exitosas,
+            "deliveries_fallidas": fallidas,
+        })
+
+    return result
 
 
 # ── Promoción ─────────────────────────────────────────────────────────────────
@@ -133,6 +205,48 @@ def promote_user_to_admin(
 
     logger.info(f"Promoción exitosa → '{username}' ahora es admin | Realizado por: '{current_user.username}'")
     return {"message": f"El usuario '{username}' fue promovido a admin exitosamente", "user_id": user.id, "username": user.username, "role": user.role_name}
+
+
+# ── Gestión de usuarios ───────────────────────────────────────────────────────────────
+
+@router.patch("/users/{username}/cancel")
+def cancel_user(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin)
+):
+    """Admin: cancela un usuario (no puede iniciar sesión ni enviar mensajes)"""
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"El usuario '{username}' no existe")
+    if username == current_user.username:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No podés cancelar tu propia cuenta")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El usuario '{username}' ya está cancelado")
+
+    user.is_active = 0
+    db.commit()
+    logger.info(f"Admin '{current_user.username}' canceló al usuario '{username}'")
+    return {"message": f"Usuario '{username}' cancelado exitosamente", "username": username, "is_active": False}
+
+
+@router.patch("/users/{username}/reactivate")
+def reactivate_user(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin)
+):
+    """Admin: reactiva un usuario cancelado"""
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"El usuario '{username}' no existe")
+    if user.is_active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El usuario '{username}' ya está activo")
+
+    user.is_active = 1
+    db.commit()
+    logger.info(f"Admin '{current_user.username}' reactivó al usuario '{username}'")
+    return {"message": f"Usuario '{username}' reactivado exitosamente", "username": username, "is_active": True}
 
 
 # ── Roles ─────────────────────────────────────────────────────────────────────

@@ -47,6 +47,7 @@ class User(Base):
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
     # NULL = usa el límite global de la tabla config
     daily_limit = Column(Integer, nullable=True)
+    is_active = Column(Integer, nullable=False, default=1)  # 1 = activo, 0 = cancelado
     created_at = Column(DateTime, server_default=func.now())
 
     role_rel = relationship("Role", back_populates="users")

@@ -70,6 +70,13 @@ def login(
             detail="Usuario o contraseña incorrectos"
         )
 
+    if not user.is_active:
+        logger.warning(f"Login fallido → Usuario '{form_data.username}' está cancelado")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta fue cancelada. Contactá al administrador."
+        )
+
     access_token = create_access_token(data={"sub": user.username, "role": user.role_name})
 
     logger.info(f"Login exitoso → Usuario '{user.username}' | Rol: '{user.role_name}' | Token generado correctamente")
