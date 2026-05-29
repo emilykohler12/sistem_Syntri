@@ -61,6 +61,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 
+# ── Manejador global de excepciones ──────────────────────────────────────────
+from fastapi import Request as _Request
+from fastapi.responses import JSONResponse as _JSONResponse
+import traceback as _traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: _Request, exc: Exception):
+    # Loguea el stacktrace completo internamente
+    logger.error(
+        f"Excepción no controlada → "
+        f"Método: {request.method} | "
+        f"Ruta: {request.url.path} | "
+        f"Tipo: {type(exc).__name__} | "
+        f"Detalle: {str(exc)}\n"
+        f"{_traceback.format_exc()}"
+    )
+    # Respuesta genérica al cliente: sin stacktrace ni info interna
+    return _JSONResponse(
+        status_code=500,
+        content={"detail": "Error interno del servidor. Por favor intentá más tarde."}
+    )
+
+
 # ── Rutas públicas ────────────────────────────────────────────────────────────
 PUBLIC_ROUTES = {
     "/",
