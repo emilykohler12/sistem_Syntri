@@ -4,6 +4,8 @@ API REST para el envío centralizado de notificaciones a múltiples plataformas 
 
 Creado por [Emily Kohler](https://github.com/emilykohler12).
 
+🔗 **Demo en vivo**: [sistem-syntri.vercel.app](https://sistem-syntri.vercel.app/)
+
 ---
 
 ## Descripción
