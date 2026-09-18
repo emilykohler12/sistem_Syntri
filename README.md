@@ -6,6 +6,10 @@ Creado por [Emily Kohler](https://github.com/emilykohler12).
 
 🔗 **Demo en vivo**: [sistem-syntri.vercel.app](https://sistem-syntri.vercel.app/)
 
+Para probarla, iniciá sesión con la cuenta de admin:
+- **Email:** `admin@syntri.local`
+- **Contraseña:** `admin123`
+
 ---
 
 ## Descripción
