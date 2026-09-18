@@ -54,7 +54,10 @@ async function saveGlobalLimit() {
 }
 
 async function saveUserLimit(username: string) {
-  const raw = userLimitDrafts.value[username]?.trim()
+  // v-model en un <input type="number"> guarda un number, no un string, aun
+  // sin el modificador .number — .trim() sobre eso tira TypeError y frena
+  // la función antes de llegar al fetch. Por eso el guardado no hacía nada.
+  const raw = String(userLimitDrafts.value[username] ?? '').trim()
   const newLimit = raw ? Number(raw) : null
 
   if (newLimit !== null && (Number.isNaN(newLimit) || newLimit < 1)) {
@@ -159,7 +162,7 @@ onMounted(loadAll)
             <tbody>
               <tr v-for="(a, i) in audit" :key="i" class="border-b border-[var(--color-border)] last:border-0">
                 <td class="px-4 py-2">{{ a.changed_by }}</td>
-                <td class="px-4 py-2 capitalize">{{ a.target }}</td>
+                <td class="px-4 py-2">{{ a.target === 'global' ? 'Global' : a.target }}</td>
                 <td class="px-4 py-2">{{ a.old_limit }}</td>
                 <td class="px-4 py-2">{{ a.new_limit }}</td>
                 <td class="px-4 py-2 text-[var(--color-text-muted)]">{{ new Date(a.changed_at).toLocaleString() }}</td>

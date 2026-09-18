@@ -30,7 +30,7 @@ function handleLogout() {
             Mensajes
           </router-link>
           <router-link
-            v-if="auth.isAdmin"
+            v-if="auth.canAccessAdmin"
             to="/admin"
             class="cursor-default px-3 py-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)]"
             active-class="!text-[var(--color-accent)] !bg-[var(--color-accent-soft)] font-medium"

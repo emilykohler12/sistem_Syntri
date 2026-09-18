@@ -16,6 +16,7 @@ interface AuthState {
   token: string | null
   email: string | null
   role: string | null
+  permissions: string[]
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -27,15 +28,22 @@ export const useAuthStore = defineStore('auth', {
       token: valid ? token : null,
       email: valid ? payload!.sub : null,
       role: valid ? payload!.role : null,
+      permissions: valid ? (payload!.permissions ?? []) : [],
     }
   },
 
   getters: {
     isAuthenticated: (state) => !!state.token,
     isAdmin: (state) => state.role === 'admin',
+    // Admin ve todo el panel; otro rol solo si tiene alguna capacidad asignada
+    canAccessAdmin: (state) => state.role === 'admin' || state.permissions.length > 0,
   },
 
   actions: {
+    hasPermission(capability: string): boolean {
+      return this.isAdmin || this.permissions.includes(capability)
+    },
+
     async login(email: string, password: string) {
       // El backend usa OAuth2PasswordRequestForm, que siempre llama al campo
       // "username" por espec — acá viaja el email igual.
@@ -67,6 +75,7 @@ export const useAuthStore = defineStore('auth', {
       this.token = token
       this.email = payload.sub
       this.role = payload.role
+      this.permissions = payload.permissions ?? []
     },
 
     logout() {
@@ -74,6 +83,7 @@ export const useAuthStore = defineStore('auth', {
       this.token = null
       this.email = null
       this.role = null
+      this.permissions = []
     },
   },
 })

@@ -100,7 +100,11 @@ class AuthService:
             )
 
         self._clear_attempts(email)
-        token = create_access_token(data={"sub": user.username, "role": user.role_name})
+        token = create_access_token(data={
+            "sub": user.username,
+            "role": user.role_name,
+            "permissions": user.all_permissions,
+        })
         logger.info(f"Login exitoso → '{email}' | Rol: {user.role_name}")
         return schemas.Token(access_token=token, token_type="bearer")
 

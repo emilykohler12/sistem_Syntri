@@ -1,11 +1,18 @@
 <script setup lang="ts">
-const tabs = [
-  { to: { name: 'admin-metrics' }, label: 'Métricas' },
-  { to: { name: 'admin-messages' }, label: 'Mensajes' },
-  { to: { name: 'admin-users' }, label: 'Usuarios' },
-  { to: { name: 'admin-roles' }, label: 'Roles' },
-  { to: { name: 'admin-limits' }, label: 'Límites' },
+import { computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+
+const ALL_TABS = [
+  { to: { name: 'admin-metrics' }, label: 'Métricas', permission: 'metrics' },
+  { to: { name: 'admin-messages' }, label: 'Mensajes', permission: 'messages' },
+  { to: { name: 'admin-users' }, label: 'Usuarios', permission: 'users' },
+  { to: { name: 'admin-roles' }, label: 'Roles', permission: 'roles' },
+  { to: { name: 'admin-limits' }, label: 'Límites', permission: 'limits' },
 ]
+
+const tabs = computed(() => ALL_TABS.filter((tab) => auth.hasPermission(tab.permission)))
 </script>
 
 <template>

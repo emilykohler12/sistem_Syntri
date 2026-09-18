@@ -1,29 +1,41 @@
 # Sistem Syntri
 
-API REST para el envío centralizado de notificaciones a múltiples plataformas de comunicación.
+API REST para el envío centralizado de notificaciones a múltiples plataformas de comunicación, con panel de administración y control de acceso por roles.
 
-Desarrollado por **Emily Noralí Kohler** como práctica de 5° año de Ingeniería en Sistemas de Información en **Sirius Software**.
+Creado por [Emily Kohler](https://github.com/emilykohler12).
 
 ---
 
 ## Descripción
 
-Sistem Syntri permite a usuarios registrados enviar mensajes a Discord, Slack y Telegram desde un único endpoint. El sistema incluye autenticación con JWT, control de roles, límites diarios configurables, reintentos automáticos y un panel de administración completo.
+Sistem Syntri permite a usuarios registrados enviar mensajes a Slack, Discord y Telegram desde un único endpoint, con reintentos automáticos ante fallos. Incluye autenticación por email con JWT, recuperación de contraseña por código, límites diarios de envío (globales y por usuario, con auditoría de cambios) y un sistema de roles con permisos configurables por sección del panel de administración.
+
+---
+
+## Funcionalidades
+
+- **Envío multiplataforma**: Slack, Discord y Telegram desde un mismo endpoint, con reintentos automáticos y registro de cada intento.
+- **Autenticación por email**: registro y login con JWT; recuperación de contraseña con código de 6 dígitos enviado por email.
+- **Roles y permisos**: cada rol puede tener acceso a secciones específicas del panel (mensajes, métricas, usuarios, roles, límites), asignables individualmente.
+- **Límites configurables**: límite diario global y por usuario, con historial de auditoría de cada cambio.
+- **Panel de administración**: métricas con gráficos, gestión de usuarios y roles, y consulta de mensajes con filtros y paginación.
+- **Seguridad**: rate limiting por IP, bloqueo temporal tras intentos fallidos de login, headers de seguridad HTTP, manejo centralizado de excepciones.
 
 ---
 
 ## Tecnologías
 
-- **Python 3.12**
-- **FastAPI** — framework web
-- **PostgreSQL** — base de datos principal
-- **SQLAlchemy** — ORM
-- **Alembic** — migraciones de base de datos
+**Backend**
+- **Python 3.12** + **FastAPI**
+- **PostgreSQL** + **SQLAlchemy** + **Alembic**
 - **JWT (python-jose)** — autenticación
-- **Swagger UI** — documentación interactiva
-- **Docker / Docker Compose** — contenedorización
-- **pytest** — tests unitarios
+- **Docker / Docker Compose**
+- **pytest** — tests automatizados
 - **GitHub Actions** — CI/CD
+
+**Frontend**
+- **Vue 3** + **TypeScript** + **Vite**
+- **Tailwind CSS**
 
 ---
 
@@ -31,7 +43,7 @@ Sistem Syntri permite a usuarios registrados enviar mensajes a Discord, Slack y 
 
 - Python 3.12+
 - PostgreSQL 15+
-- pip
+- Node.js 20+ (para el frontend)
 
 ---
 
@@ -41,7 +53,7 @@ Sistem Syntri permite a usuarios registrados enviar mensajes a Discord, Slack y 
 
 ```bash
 git clone https://github.com/emilykohler12/sistem_Syntri
-cd sistem-syntri
+cd sistem_Syntri
 ```
 
 ### 2. Crear el entorno virtual e instalar dependencias
@@ -78,7 +90,7 @@ TELEGRAM_BOT_TOKEN=tu_token_de_botfather
 TELEGRAM_CHAT_ID=tu_chat_id
 ENVIRONMENT=development
 
-# Opcionales: si no se configuran, el código de recuperación de contraseña
+# Opcionales: sin esto, el código de recuperación de contraseña
 # queda logueado en la consola del servidor en vez de enviarse por email
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -87,16 +99,22 @@ SMTP_PASSWORD=tu_contraseña_de_aplicación
 SMTP_FROM=tu_email@gmail.com
 ```
 
-> Para generar una `SECRET_KEY` segura:
-> ```bash
-> python -c "import secrets; print(secrets.token_hex(32))"
-> ```
+<details>
+<summary>Cómo generar una <code>SECRET_KEY</code> segura</summary>
 
-> Cómo conseguir `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`:
-> 1. Hablá con [@BotFather](https://t.me/BotFather) en Telegram, mandale `/newbot` y seguí los pasos. Te da un token tipo `123456789:ABCdefGhIJKlmNoPQRsTUVwxyz`.
-> 2. Iniciá una conversación con tu bot recién creado (buscalo por el username que le pusiste) y mandale cualquier mensaje.
-> 3. Abrí `https://api.telegram.org/bot<TU_TOKEN>/getUpdates` en el navegador y buscá `"chat":{"id":...}` en la respuesta — ese número es el `TELEGRAM_CHAT_ID`.
-> 4. Para mandar a un grupo en vez de a vos: agregá el bot al grupo, mandá un mensaje ahí, y repetí el paso 3 (el chat_id de un grupo es negativo).
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+</details>
+
+<details>
+<summary>Cómo conseguir <code>TELEGRAM_BOT_TOKEN</code> y <code>TELEGRAM_CHAT_ID</code></summary>
+
+1. Hablá con [@BotFather](https://t.me/BotFather) en Telegram, mandale `/newbot` y seguí los pasos. Te da un token tipo `123456789:ABCdefGhIJKlmNoPQRsTUVwxyz`.
+2. Iniciá una conversación con tu bot recién creado y mandale cualquier mensaje.
+3. Abrí `https://api.telegram.org/bot<TU_TOKEN>/getUpdates` y buscá `"chat":{"id":...}` en la respuesta — ese número es el `TELEGRAM_CHAT_ID`.
+4. Para mandar a un grupo en vez de a un usuario: agregá el bot al grupo, mandá un mensaje ahí, y repetí el paso 3 (el chat_id de un grupo es negativo).
+</details>
 
 ### 4. Crear la base de datos y correr migraciones
 
@@ -122,14 +140,11 @@ Credenciales por defecto:
 uvicorn app.main:app --reload
 ```
 
-La API estará disponible en `http://localhost:8000`
-Swagger UI en `http://localhost:8000/docs`
+La API queda disponible en `http://localhost:8000`, con Swagger UI en `http://localhost:8000/docs`.
 
 ---
 
 ## Docker
-
-### Levantar con Docker Compose
 
 ```bash
 cp .env.example .env   # completar valores
@@ -142,7 +157,7 @@ Esto levanta la base de datos PostgreSQL y la API juntas.
 
 ## Frontend
 
-El panel web vive en [`frontend/`](frontend/) (Vue 3 + TypeScript + Vite + Tailwind). Con el backend corriendo en `http://localhost:8000`:
+Panel web en [`frontend/`](frontend/) (Vue 3 + TypeScript + Vite + Tailwind CSS). Con el backend corriendo en `http://localhost:8000`:
 
 ```bash
 cd frontend
@@ -151,7 +166,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Queda disponible en `http://localhost:5173`. Incluye login/registro, envío de mensajes con historial propio, y un panel de administración (usuarios, roles, límites diarios y auditoría, métricas). Ver [`frontend/README.md`](frontend/README.md) para más detalle.
+Queda disponible en `http://localhost:5173`. Incluye login/registro por email, recuperación de contraseña, envío de mensajes con historial y filtros, y un panel de administración completo: métricas con gráficos, gestión de usuarios y roles con permisos configurables, y auditoría de límites. Ver [`frontend/README.md`](frontend/README.md) para más detalle.
 
 ---
 
@@ -161,7 +176,7 @@ Queda disponible en `http://localhost:5173`. Incluye login/registro, envío de m
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `POST` | `/api/v1/auth/register` | Registrar nuevo usuario (con email) |
+| `POST` | `/api/v1/auth/register` | Registrar nuevo usuario con email |
 | `POST` | `/api/v1/auth/login` | Iniciar sesión con email (devuelve JWT) |
 | `POST` | `/api/v1/auth/forgot-password` | Pedir código de 6 dígitos por email |
 | `POST` | `/api/v1/auth/reset-password` | Cambiar contraseña con el código |
@@ -170,26 +185,31 @@ Queda disponible en `http://localhost:5173`. Incluye login/registro, envío de m
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `POST` | `/api/v1/messages/` | Enviar mensaje a Discord, Slack y/o Telegram |
+| `POST` | `/api/v1/messages/` | Enviar mensaje a Slack, Discord y/o Telegram |
 | `GET` | `/api/v1/messages/` | Listar mis mensajes con filtros, paginado |
 
 ### Admin
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/v1/admin/messages` | Listar todos los mensajes |
-| `GET` | `/api/v1/admin/metrics` | Métricas por usuario |
-| `GET` | `/api/v1/admin/metrics/daily` | Métricas diarias |
-| `POST` | `/api/v1/admin/users/promote` | Promover usuario a admin |
-| `PATCH` | `/api/v1/admin/users/{username}/cancel` | Cancelar usuario |
-| `PATCH` | `/api/v1/admin/users/{username}/reactivate` | Reactivar usuario |
-| `GET` | `/api/v1/admin/roles` | Listar roles |
-| `POST` | `/api/v1/admin/roles` | Crear rol |
-| `DELETE` | `/api/v1/admin/roles/{name}` | Eliminar rol |
-| `GET` | `/api/v1/admin/limits` | Ver límites |
-| `PATCH` | `/api/v1/admin/limits/global` | Cambiar límite global |
-| `PATCH` | `/api/v1/admin/limits/user/{username}` | Cambiar límite por usuario |
-| `GET` | `/api/v1/admin/limits/audit` | Historial de cambios |
+| Método | Ruta | Descripción | Permiso requerido |
+|--------|------|-------------|--------------------|
+| `GET` | `/api/v1/admin/messages` | Listar todos los mensajes | `messages` |
+| `GET` | `/api/v1/admin/metrics` | Métricas por usuario | `metrics` |
+| `GET` | `/api/v1/admin/metrics/daily` | Métricas diarias | `metrics` |
+| `POST` | `/api/v1/admin/users/promote` | Promover usuario a admin | `users` |
+| `PATCH` | `/api/v1/admin/users/{username}/role` | Asignar cualquier rol a un usuario | `users` |
+| `PATCH` | `/api/v1/admin/users/{username}/cancel` | Cancelar usuario | `users` |
+| `PATCH` | `/api/v1/admin/users/{username}/reactivate` | Reactivar usuario | `users` |
+| `GET` | `/api/v1/admin/roles` | Listar roles | `roles` o `users` |
+| `POST` | `/api/v1/admin/roles` | Crear rol | `roles` |
+| `PATCH` | `/api/v1/admin/roles/{role_name}/permissions` | Definir permisos de un rol | `roles` |
+| `DELETE` | `/api/v1/admin/roles/{name}` | Eliminar rol | `roles` |
+| `GET` | `/api/v1/admin/permissions` | Listar permisos disponibles | `roles` |
+| `GET` | `/api/v1/admin/limits` | Ver límites | `limits` |
+| `PATCH` | `/api/v1/admin/limits/global` | Cambiar límite global | `limits` |
+| `PATCH` | `/api/v1/admin/limits/user/{username}` | Cambiar límite por usuario | `limits` |
+| `GET` | `/api/v1/admin/limits/audit` | Historial de cambios de límites | `limits` |
+
+El rol `admin` tiene todos los permisos siempre. Los demás roles solo acceden a las secciones que se les hayan asignado explícitamente desde el panel de Roles.
 
 ---
 
@@ -199,13 +219,13 @@ Queda disponible en `http://localhost:5173`. Incluye login/registro, envío de m
 pytest app/tests/ -v
 ```
 
-El proyecto incluye 50 tests que cubren autenticación, recuperación de contraseña, envío de mensajes, rate limiting, métricas, permisos y manejo de errores.
+El proyecto incluye 59 tests que cubren autenticación, recuperación de contraseña, envío de mensajes, rate limiting, permisos por rol, límites y auditoría, y manejo de errores.
 
 ---
 
 ## Arquitectura
 
-El sistema sigue el patrón **Router → Service → Repository**:
+El backend sigue el patrón **Router → Service → Repository**:
 
 - **Routers** (`app/routers/`) — reciben el request HTTP y devuelven la respuesta
 - **Services** (`app/services/`) — contienen la lógica de negocio
@@ -214,14 +234,14 @@ El sistema sigue el patrón **Router → Service → Repository**:
 **Patrones de diseño aplicados:**
 - **Strategy** — `NotificationService` como clase base abstracta implementada por `SlackService`, `DiscordService` y `TelegramService`
 - **Factory** — diccionario `AVAILABLE_SERVICES` que instancia el servicio según el destino
-- **Middleware chain** — autenticación, logging, seguridad HTTP y rate limit encadenados
+- **Middleware chain** — CORS, autenticación, logging, seguridad HTTP y rate limit encadenados
+- **RBAC por permisos** — cada rol tiene una lista de capacidades (`app/permissions.py`); `require_permission()` protege cada endpoint del panel de administración según la capacidad que necesita
 
 ---
 
 ## CI/CD
 
-GitHub Actions corre los tests automáticamente en cada push a `main` o `develop`.
-Ver `.github/workflows/tests.yml`.
+GitHub Actions corre los tests automáticamente en cada push a `main` o `develop`. Ver `.github/workflows/tests.yml`.
 
 ---
 
@@ -233,14 +253,16 @@ sistem_Syntri/
 │   ├── routers/          # Endpoints HTTP
 │   ├── services/         # Lógica de negocio
 │   ├── repositories/     # Acceso a la BD
-│   ├── tests/            # Tests unitarios
-│   ├── auth.py           # JWT y permisos
-│   ├── models.py         # Modelos SQLAlchemy
-│   ├── schemas.py        # Schemas Pydantic
-│   ├── database.py       # Configuración BD
-│   └── main.py           # Middlewares y app
-├── alembic/              # Migraciones
-├── .github/workflows/    # CI/CD
+│   ├── tests/             # Tests automatizados
+│   ├── auth.py            # JWT y permisos
+│   ├── permissions.py     # Capacidades asignables a un rol
+│   ├── models.py          # Modelos SQLAlchemy
+│   ├── schemas.py         # Schemas Pydantic
+│   ├── database.py        # Configuración BD
+│   └── main.py            # Middlewares y app
+├── alembic/               # Migraciones
+├── frontend/               # Panel web (Vue 3 + TypeScript)
+├── .github/workflows/      # CI/CD
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .env.example

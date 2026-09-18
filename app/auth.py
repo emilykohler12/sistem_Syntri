@@ -63,3 +63,19 @@ def require_admin(current_user = Depends(get_current_user)):
             detail="Se requiere rol de administrador"
         )
     return current_user
+
+def require_permission(*capabilities: str):
+    """
+    Dependencia para las secciones del panel de admin: alcanza con tener
+    UNA de las capacidades pedidas (admin las tiene todas siempre).
+    Uso: Depends(require_permission("roles")) o Depends(require_permission("roles", "users"))
+    cuando dos secciones distintas necesitan leer el mismo recurso.
+    """
+    def checker(current_user = Depends(get_current_user)):
+        if not any(current_user.has_permission(c) for c in capabilities):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Se requiere alguno de estos permisos: {', '.join(capabilities)}"
+            )
+        return current_user
+    return checker

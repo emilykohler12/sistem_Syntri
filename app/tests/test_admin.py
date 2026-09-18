@@ -142,3 +142,90 @@ def test_auditoria_registra_cambio(client, admin_token):
     audit = response.json()
     assert len(audit) >= 1
     assert audit[0]["new_limit"] == 150
+
+
+# ── Roles y permisos ─────────────────────────────────────────────────────────
+
+def test_listar_permisos_disponibles(client, admin_token):
+    response = client.get("/api/v1/admin/permissions", headers={"Authorization": f"Bearer {admin_token}"})
+    assert response.status_code == 200
+    keys = {p["key"] for p in response.json()}
+    assert keys == {"messages", "metrics", "users", "roles", "limits"}
+
+def test_rol_nuevo_arranca_sin_permisos(client, admin_token):
+    response = client.post(
+        "/api/v1/admin/roles?name=moderador&description=Rol de prueba",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert response.status_code == 201
+    roles = client.get("/api/v1/admin/roles", headers={"Authorization": f"Bearer {admin_token}"}).json()
+    moderador = next(r for r in roles if r["name"] == "moderador")
+    assert moderador["permissions"] == []
+
+def test_asignar_rol_a_un_usuario(client, admin_token, user_token):
+    client.post("/api/v1/admin/roles?name=moderador", headers={"Authorization": f"Bearer {admin_token}"})
+    response = client.patch(
+        "/api/v1/admin/users/testuser/role",
+        json={"role_name": "moderador"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert response.status_code == 200
+    assert response.json()["role"] == "moderador"
+
+def test_rol_sin_permisos_no_accede_a_nada_del_admin(client, admin_token, user_token):
+    client.post("/api/v1/admin/roles?name=moderador", headers={"Authorization": f"Bearer {admin_token}"})
+    client.patch(
+        "/api/v1/admin/users/testuser/role",
+        json={"role_name": "moderador"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    response = client.get("/api/v1/admin/roles", headers={"Authorization": f"Bearer {user_token}"})
+    assert response.status_code == 403
+
+def test_rol_con_permiso_de_roles_solo_accede_a_roles(client, admin_token, user_token):
+    """Un rol al que solo se le asignó 'roles' puede leer /admin/roles pero no /admin/messages"""
+    client.post("/api/v1/admin/roles?name=moderador", headers={"Authorization": f"Bearer {admin_token}"})
+    perm_response = client.patch(
+        "/api/v1/admin/roles/moderador/permissions",
+        json={"permissions": ["roles"]},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert perm_response.status_code == 200
+    assert perm_response.json()["permissions"] == ["roles"]
+
+    client.patch(
+        "/api/v1/admin/users/testuser/role",
+        json={"role_name": "moderador"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+
+    r_roles = client.get("/api/v1/admin/roles", headers={"Authorization": f"Bearer {user_token}"})
+    assert r_roles.status_code == 200
+
+    r_messages = client.get("/api/v1/admin/messages", headers={"Authorization": f"Bearer {user_token}"})
+    assert r_messages.status_code == 403
+
+def test_no_se_puede_editar_permisos_del_rol_admin(client, admin_token):
+    response = client.patch(
+        "/api/v1/admin/roles/admin/permissions",
+        json={"permissions": ["messages"]},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert response.status_code == 400
+
+def test_permisos_invalidos_se_rechazan(client, admin_token):
+    client.post("/api/v1/admin/roles?name=moderador2", headers={"Authorization": f"Bearer {admin_token}"})
+    response = client.patch(
+        "/api/v1/admin/roles/moderador2/permissions",
+        json={"permissions": ["algo_que_no_existe"]},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert response.status_code == 400
+
+def test_admin_no_puede_quitarse_su_propio_rol(client, admin_token, admin_user):
+    response = client.patch(
+        f"/api/v1/admin/users/{admin_user['username']}/role",
+        json={"role_name": "user"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert response.status_code == 400

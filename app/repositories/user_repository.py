@@ -57,6 +57,11 @@ class UserRepository:
     def get_all_roles(self) -> list[models.Role]:
         return self.db.query(models.Role).all()
 
+    def update_role(self, role: models.Role) -> models.Role:
+        self.db.commit()
+        self.db.refresh(role)
+        return role
+
     def create_role(self, name: str, description: str | None) -> models.Role:
         role = models.Role(name=name, description=description)
         self.db.add(role)

@@ -3,20 +3,25 @@ import { onMounted, ref } from 'vue'
 import { api, extractErrorMessage } from '@/lib/api'
 import { useToast } from '@/stores/toast'
 import { useAuthStore } from '@/stores/auth'
-import type { UserMetric } from '@/types'
+import type { Role, UserMetric } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
 
 const users = ref<UserMetric[]>([])
+const roles = ref<Role[]>([])
 const loading = ref(false)
 const actingOn = ref<string | null>(null)
 
 async function loadUsers() {
   loading.value = true
   try {
-    const { data } = await api.get<UserMetric[]>('/api/v1/admin/metrics')
-    users.value = data
+    const [usersRes, rolesRes] = await Promise.all([
+      api.get<UserMetric[]>('/api/v1/admin/metrics'),
+      api.get<Role[]>('/api/v1/admin/roles'),
+    ])
+    users.value = usersRes.data
+    roles.value = rolesRes.data
   } catch (err) {
     toast.error(extractErrorMessage(err, 'No se pudieron cargar los usuarios.'))
   } finally {
@@ -24,14 +29,15 @@ async function loadUsers() {
   }
 }
 
-async function promote(username: string) {
+async function changeRole(username: string, roleName: string) {
   actingOn.value = username
   try {
-    await api.post('/api/v1/admin/users/promote', null, { params: { username } })
-    toast.success(`'${username}' ahora es admin.`)
+    await api.patch(`/api/v1/admin/users/${username}/role`, { role_name: roleName })
+    toast.success(`'${username}' ahora tiene el rol '${roleName}'.`)
     await loadUsers()
   } catch (err) {
-    toast.error(extractErrorMessage(err, 'No se pudo promover al usuario.'))
+    toast.error(extractErrorMessage(err, 'No se pudo cambiar el rol.'))
+    await loadUsers()
   } finally {
     actingOn.value = null
   }
@@ -84,7 +90,17 @@ onMounted(loadUsers)
         <tbody>
           <tr v-for="u in users" :key="u.user_id" class="border-b border-[var(--color-border)] last:border-0">
             <td class="px-4 py-2 font-medium">{{ u.username }}</td>
-            <td class="px-4 py-2 capitalize">{{ u.role }}</td>
+            <td class="px-4 py-2">
+              <select
+                :value="u.role"
+                :disabled="actingOn === u.username || (u.username === auth.email && u.role === 'admin')"
+                :title="u.username === auth.email && u.role === 'admin' ? 'No podés quitarte tu propio rol de admin' : ''"
+                class="input py-1 w-36 capitalize"
+                @change="changeRole(u.username, ($event.target as HTMLSelectElement).value)"
+              >
+                <option v-for="r in roles" :key="r.id" :value="r.name" class="capitalize">{{ r.name }}</option>
+              </select>
+            </td>
             <td class="px-4 py-2">
               <span :class="u.is_active ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'">
                 {{ u.is_active ? 'Activo' : 'Cancelado' }}
@@ -92,14 +108,6 @@ onMounted(loadUsers)
             </td>
             <td class="px-4 py-2">
               <div class="flex justify-end gap-2">
-                <button
-                  v-if="u.role !== 'admin'"
-                  :disabled="actingOn === u.username"
-                  class="rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs hover:bg-[var(--color-bg)] disabled:opacity-50"
-                  @click="promote(u.username)"
-                >
-                  Promover
-                </button>
                 <button
                   v-if="u.is_active"
                   :disabled="actingOn === u.username || u.username === auth.email"

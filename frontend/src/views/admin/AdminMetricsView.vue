@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { api, extractErrorMessage } from '@/lib/api'
 import { useToast } from '@/stores/toast'
 import type { DailyMetric, UserMetric } from '@/types'
+import DailyActivityChart from '@/components/DailyActivityChart.vue'
 
 const toast = useToast()
 
@@ -11,10 +12,6 @@ const dailyMetrics = ref<DailyMetric[]>([])
 const loading = ref(false)
 
 const dateFilters = reactive({ from_date: '', to_date: '' })
-
-const maxDailyTotal = computed(() =>
-  Math.max(1, ...dailyMetrics.value.map((d) => d.total_mensajes)),
-)
 
 async function loadMetrics() {
   loading.value = true
@@ -52,26 +49,8 @@ onMounted(loadMetrics)
         </div>
       </div>
 
-      <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6">
-        <p v-if="dailyMetrics.length === 0" class="text-sm text-[var(--color-text-muted)]">Sin datos en el rango seleccionado.</p>
-        <div v-else class="space-y-2">
-          <div v-for="row in dailyMetrics" :key="row.dia" class="flex items-center gap-3 text-sm">
-            <span class="w-24 shrink-0 text-[var(--color-text-muted)]">{{ row.dia }}</span>
-            <div class="flex-1 bg-[var(--color-bg)] rounded h-5 overflow-hidden flex">
-              <div
-                class="bg-[var(--color-success)] h-full"
-                :style="{ width: `${(row.deliveries_exitosas / maxDailyTotal) * 100}%` }"
-              />
-              <div
-                class="bg-[var(--color-danger)] h-full"
-                :style="{ width: `${(row.deliveries_fallidas / maxDailyTotal) * 100}%` }"
-              />
-            </div>
-            <span class="w-40 shrink-0 text-xs text-[var(--color-text-muted)]">
-              {{ row.total_mensajes }} msjs · {{ row.deliveries_exitosas }} ok / {{ row.deliveries_fallidas }} fail
-            </span>
-          </div>
-        </div>
+      <div class="card p-6">
+        <DailyActivityChart :data="dailyMetrics" />
       </div>
     </section>
 

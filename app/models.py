@@ -10,8 +10,16 @@ class Role(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
     description = Column(String, nullable=True)
+    # Lista de capacidades separadas por coma (ver app/permissions.py), ej:
+    # "roles,limits". El rol 'admin' las tiene todas implícitamente sin
+    # importar lo que diga esta columna (ver User.has_permission).
+    permissions = Column(String, nullable=False, default="")
 
     users = relationship("User", back_populates="role_rel")
+
+    @property
+    def permission_list(self) -> list[str]:
+        return [p for p in self.permissions.split(",") if p] if self.permissions else []
 
 
 @event.listens_for(Role.__table__, "after_create")
@@ -19,8 +27,9 @@ def seed_roles(target, connection, **kwargs):
     connection.execute(
         target.insert(),
         [
-            {"name": "user",  "description": "Usuario estándar"},
-            {"name": "admin", "description": "Administrador con acceso total"},
+            {"name": "user",  "description": "Usuario estándar", "permissions": ""},
+            {"name": "admin", "description": "Administrador con acceso total",
+             "permissions": "messages,metrics,users,roles,limits"},
         ],
     )
 
@@ -64,6 +73,20 @@ class User(Base):
     @property
     def is_admin(self) -> bool:
         return self.has_role("admin")
+
+    def has_permission(self, capability: str) -> bool:
+        """Admin siempre tiene todo; los demás roles solo lo que tengan asignado."""
+        if self.is_admin:
+            return True
+        return capability in self.role_rel.permission_list if self.role_rel else False
+
+    @property
+    def all_permissions(self) -> list[str]:
+        """Se manda en el JWT para que el frontend sepa qué secciones mostrar sin pedir /admin/roles."""
+        from app.permissions import PERMISSION_KEYS
+        if self.is_admin:
+            return sorted(PERMISSION_KEYS)
+        return self.role_rel.permission_list if self.role_rel else []
 
 
 class DailyUsage(Base):

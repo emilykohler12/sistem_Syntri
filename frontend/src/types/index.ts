@@ -2,6 +2,12 @@ export interface Role {
   id: number
   name: string
   description: string | null
+  permissions: string[]
+}
+
+export interface Permission {
+  key: string
+  label: string
 }
 
 export interface RegisteredUser {
@@ -13,6 +19,7 @@ export interface RegisteredUser {
 export interface JwtPayload {
   sub: string
   role: string
+  permissions: string[]
   exp: number
 }
 

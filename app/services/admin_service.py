@@ -4,6 +4,7 @@ from datetime import date
 from app.repositories.message_repository import MessageRepository
 from app.repositories.user_repository import UserRepository
 from app import models
+from app.permissions import PERMISSIONS, PERMISSION_KEYS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -120,10 +121,28 @@ class AdminService:
         logger.info(f"'{username}' reactivado por '{admin.username}'")
         return {"message": f"'{username}' reactivado", "username": username, "is_active": True}
 
+    def update_user_role(self, username: str, role_name: str, admin: models.User) -> dict:
+        user = self.user_repo.get_by_username(username)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"El usuario '{username}' no existe")
+        role = self.user_repo.get_role_by_name(role_name)
+        if not role:
+            raise HTTPException(status_code=404, detail=f"El rol '{role_name}' no existe")
+        if username == admin.username and role_name != "admin":
+            raise HTTPException(status_code=400, detail="No podés quitarte tu propio rol de admin")
+        user.role_id = role.id
+        self.user_repo.update(user)
+        logger.info(f"Rol de '{username}' cambiado a '{role_name}' por '{admin.username}'")
+        return {"message": f"'{username}' ahora tiene el rol '{role_name}'", "username": username, "role": role_name}
+
     # ── Roles ─────────────────────────────────────────────────────────────────
 
+    def list_permissions(self) -> list:
+        return PERMISSIONS
+
     def list_roles(self) -> list:
-        return [{"id": r.id, "name": r.name, "description": r.description}
+        return [{"id": r.id, "name": r.name, "description": r.description,
+                 "permissions": r.permission_list if r.name != "admin" else [p["key"] for p in PERMISSIONS]}
                 for r in self.user_repo.get_all_roles()]
 
     def create_role(self, name: str, description: str | None, admin: models.User) -> dict:
@@ -143,6 +162,20 @@ class AdminService:
             raise HTTPException(status_code=409, detail="No se puede eliminar: hay usuarios con este rol")
         self.user_repo.delete_role(role)
         logger.info(f"Rol '{role_name}' eliminado por '{admin.username}'")
+
+    def update_role_permissions(self, role_name: str, permissions: list[str], admin: models.User) -> dict:
+        if role_name == "admin":
+            raise HTTPException(status_code=400, detail="El rol 'admin' ya tiene acceso total, no se puede editar")
+        role = self.user_repo.get_role_by_name(role_name)
+        if not role:
+            raise HTTPException(status_code=404, detail=f"El rol '{role_name}' no existe")
+        invalid = set(permissions) - PERMISSION_KEYS
+        if invalid:
+            raise HTTPException(status_code=400, detail=f"Permisos inválidos: {', '.join(invalid)}")
+        role.permissions = ",".join(permissions)
+        self.user_repo.update_role(role)
+        logger.info(f"Permisos de '{role_name}' actualizados a [{role.permissions}] por '{admin.username}'")
+        return {"id": role.id, "name": role.name, "description": role.description, "permissions": role.permission_list}
 
     # ── Límites ───────────────────────────────────────────────────────────────
 
