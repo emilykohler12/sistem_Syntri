@@ -124,6 +124,21 @@ Esto levanta la base de datos PostgreSQL y la API juntas.
 
 ---
 
+## Frontend
+
+El panel web vive en [`frontend/`](frontend/) (Vue 3 + TypeScript + Vite + Tailwind). Con el backend corriendo en `http://localhost:8000`:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Queda disponible en `http://localhost:5173`. Incluye login/registro, envío de mensajes con historial propio, y un panel de administración (usuarios, roles, límites diarios y auditoría, métricas). Ver [`frontend/README.md`](frontend/README.md) para más detalle.
+
+---
+
 ## Endpoints principales
 
 ### Autenticación

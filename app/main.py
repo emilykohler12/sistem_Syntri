@@ -55,16 +55,15 @@ ALLOWED_ORIGINS = [
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://127.0.0.1:8000",
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
-)
+# NOTA: CORSMiddleware se registra al final del archivo (después de los demás
+# middlewares) a propósito: en Starlette el último middleware registrado queda
+# como el más externo, así que CORS corre primero y puede responder los
+# preflight OPTIONS antes de que auth_middleware los rechace con 401 (el
+# preflight nunca lleva el header Authorization).
 
 
 # ── Headers de seguridad ──────────────────────────────────────────────────────
@@ -105,45 +104,6 @@ async def global_exception_handler(request: _Request, exc: Exception):
     )
 
 
-# ── Rate limit por IP ────────────────────────────────────────────────────────
-# Almacena en memoria: { ip: { "count": int, "reset_at": timestamp } }
-# Se resetea cada 60 segundos. Límite: 60 requests por minuto por IP.
-import time as _time
-from collections import defaultdict
-
-IP_RATE_LIMIT = 60        # requests por ventana
-IP_RATE_WINDOW = 60       # segundos
-_ip_counters: dict = defaultdict(lambda: {"count": 0, "reset_at": 0})
-_ip_lock = None  # no necesitamos lock porque FastAPI corre en un solo hilo por worker
-
-IP_WHITELIST = {"127.0.0.1", "testclient"}  # IPs que nunca se bloquean
-
-@app.middleware("http")
-async def ip_rate_limit_middleware(request: Request, call_next):
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
-    ip = ip.split(",")[0].strip()  # x-forwarded-for puede tener múltiples IPs
-
-    if ip not in IP_WHITELIST:
-        now = _time.time()
-        counter = _ip_counters[ip]
-
-        # Resetear ventana si ya pasó el tiempo
-        if now > counter["reset_at"]:
-            counter["count"] = 0
-            counter["reset_at"] = now + IP_RATE_WINDOW
-
-        counter["count"] += 1
-
-        if counter["count"] > IP_RATE_LIMIT:
-            logger.warning(f"Rate limit por IP superado → IP: {ip} | Requests: {counter['count']}")
-            return JSONResponse(
-                status_code=429,
-                content={"detail": f"Demasiadas solicitudes desde tu IP. Esperá {IP_RATE_WINDOW} segundos."}
-            )
-
-    return await call_next(request)
-
-
 # ── Rate limit por IP ──────────────────────────────────────────
 from collections import defaultdict
 import threading
@@ -179,7 +139,6 @@ PUBLIC_ROUTES = {
 }
 
 
-# ── Middleware de autenticación ───────────────────────────────────────────────
 @app.middleware("http")
 async def ip_rate_limit_middleware(request: Request, call_next):
     """Middleware de rate limit por IP: máximo 200 requests por minuto."""
@@ -194,6 +153,7 @@ async def ip_rate_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# ── Middleware de autenticación ───────────────────────────────────────────────
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     if request.url.path in PUBLIC_ROUTES:
@@ -276,6 +236,15 @@ async def log_requests(request: Request, call_next):
         logger.info(f"OK → {log}")
 
     return response
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 
 app.include_router(auth.router)
