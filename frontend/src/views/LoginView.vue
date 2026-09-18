@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { extractErrorMessage } from '@/lib/api'
 import AuthShell from '@/components/AuthShell.vue'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const email = ref('')
 const password = ref('')
@@ -56,7 +57,7 @@ async function handleSubmit() {
             ¿Olvidaste tu contraseña?
           </router-link>
         </div>
-        <input id="password" v-model="password" type="password" required placeholder="••••••••" class="input" />
+        <PasswordInput id="password" v-model="password" required placeholder="••••••••" autocomplete="current-password" />
       </div>
 
       <button type="submit" :disabled="loading" class="btn-primary w-full">

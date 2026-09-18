@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { extractErrorMessage } from '@/lib/api'
 import { useToast } from '@/stores/toast'
 import AuthShell from '@/components/AuthShell.vue'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const email = ref('')
 const password = ref('')
@@ -63,12 +64,12 @@ async function handleSubmit() {
 
       <div class="space-y-1.5">
         <label class="text-sm font-medium text-[var(--color-text)]" for="password">Contraseña</label>
-        <input id="password" v-model="password" type="password" required placeholder="Mínimo 6 caracteres" class="input" />
+        <PasswordInput id="password" v-model="password" required placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
       </div>
 
       <div class="space-y-1.5">
         <label class="text-sm font-medium text-[var(--color-text)]" for="confirm">Confirmar contraseña</label>
-        <input id="confirm" v-model="confirmPassword" type="password" required placeholder="••••••••" class="input" />
+        <PasswordInput id="confirm" v-model="confirmPassword" required placeholder="••••••••" autocomplete="new-password" />
       </div>
 
       <button type="submit" :disabled="loading" class="btn-primary w-full">
