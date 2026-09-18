@@ -37,6 +37,7 @@ function clearFilters() {
         <option value="">Todos</option>
         <option value="slack">Slack</option>
         <option value="discord">Discord</option>
+        <option value="telegram">Telegram</option>
       </select>
     </div>
 

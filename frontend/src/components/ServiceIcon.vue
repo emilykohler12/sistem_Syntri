@@ -4,6 +4,7 @@ const props = defineProps<{ service: string }>()
 const colors: Record<string, { bg: string; text: string }> = {
   slack: { bg: '#4A154B1a', text: '#4A154B' },
   discord: { bg: '#5865F21a', text: '#5865F2' },
+  telegram: { bg: '#229ED91a', text: '#229ED9' },
 }
 
 function style() {

@@ -107,6 +107,19 @@ def test_fallo_en_un_destino_no_bloquea_el_otro(client, user_token):
     assert statuses["slack"] == "failed"
     assert statuses["discord"] == "success"
 
+def test_enviar_mensaje_a_telegram(client, user_token):
+    with patch("app.services.message_service.MessageService.check_and_increment", return_value=1), \
+         patch("app.services.telegram_service.TelegramService.send", return_value=MOCK_SUCCESS):
+        response = client.post(
+            "/api/v1/messages/",
+            json={"content": "Test telegram", "destinations": ["telegram"]},
+            headers={"Authorization": f"Bearer {user_token}"}
+        )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["deliveries"][0]["service"] == "telegram"
+    assert data["deliveries"][0]["status"] == "success"
+
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 

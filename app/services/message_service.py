@@ -7,6 +7,7 @@ from app.repositories.user_repository import UserRepository
 from app import models, schemas
 from app.services.slack_service import SlackService
 from app.services.discord_service import DiscordService
+from app.services.telegram_service import TelegramService
 import time
 import logging
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 AVAILABLE_SERVICES = {
     "slack": SlackService,
     "discord": DiscordService,
+    "telegram": TelegramService,
 }
 
 MAX_RETRIES = 3

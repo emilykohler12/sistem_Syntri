@@ -16,7 +16,7 @@ export interface JwtPayload {
   exp: number
 }
 
-export const AVAILABLE_DESTINATIONS = ['slack', 'discord'] as const
+export const AVAILABLE_DESTINATIONS = ['slack', 'discord', 'telegram'] as const
 export type Destination = (typeof AVAILABLE_DESTINATIONS)[number]
 
 export interface Delivery {
