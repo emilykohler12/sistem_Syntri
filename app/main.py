@@ -62,15 +62,18 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-# Agregá origins de producción acá cuando tengas frontend:
-# ALLOWED_ORIGINS = ["https://tu-frontend.com"]
-ALLOWED_ORIGINS = [
+# Los localhost de siempre para desarrollo, más lo que venga en
+# FRONTEND_ORIGINS (separado por comas) para producción, ej:
+# FRONTEND_ORIGINS=https://sistem-syntri.vercel.app
+_DEV_ORIGINS = [
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://127.0.0.1:8000",
 ]
+_extra_origins = [o.strip() for o in os.getenv("FRONTEND_ORIGINS", "").split(",") if o.strip()]
+ALLOWED_ORIGINS = _DEV_ORIGINS + _extra_origins
 
 # NOTA: CORSMiddleware se registra al final del archivo (después de los demás
 # middlewares) a propósito: en Starlette el último middleware registrado queda

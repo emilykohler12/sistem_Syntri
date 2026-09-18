@@ -155,6 +155,13 @@ Esto levanta la base de datos PostgreSQL y la API juntas.
 
 ---
 
+## Deploy
+
+- **Backend**: [Render](https://render.com) detecta el `Dockerfile` del repo automáticamente. Configurar las variables de entorno de `.env.example` (con `ENVIRONMENT=production` y `FRONTEND_ORIGINS` apuntando a la URL del frontend).
+- **Frontend**: [Vercel](https://vercel.com) o [Netlify](https://netlify.com), apuntando `VITE_API_URL` a la URL de Render.
+
+---
+
 ## Frontend
 
 Panel web en [`frontend/`](frontend/) (Vue 3 + TypeScript + Vite + Tailwind CSS). Con el backend corriendo en `http://localhost:8000`:
