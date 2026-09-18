@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy import text
 from app.database import engine, Base, SessionLocal
 from app.routers import auth, messages, admin
 from jose import JWTError, jwt
@@ -34,6 +35,18 @@ logging.basicConfig(
     handlers=_handlers
 )
 logger = logging.getLogger(__name__)
+
+# ── Validación de variables de entorno ────────────────────────────────────────
+# Si falta alguna de estas, la app no debe arrancar: mejor fallar acá con un
+# mensaje claro que más tarde con un error críptico en medio de un request
+# (p. ej. int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")) explotando con None).
+REQUIRED_ENV_VARS = ["DATABASE_URL", "SECRET_KEY", "ALGORITHM", "ACCESS_TOKEN_EXPIRE_MINUTES"]
+_missing_env_vars = [v for v in REQUIRED_ENV_VARS if not os.getenv(v)]
+if _missing_env_vars:
+    raise RuntimeError(
+        f"Faltan variables de entorno obligatorias: {', '.join(_missing_env_vars)}. "
+        "Copiá .env.example a .env y completá los valores."
+    )
 
 Base.metadata.create_all(bind=engine)
 
@@ -131,6 +144,7 @@ def _check_ip_rate_limit(ip: str) -> bool:
 # ── Rutas públicas ────────────────────────────────────────────────────────────
 PUBLIC_ROUTES = {
     "/",
+    "/health",
     "/docs",
     "/openapi.json",
     "/redoc",
@@ -255,3 +269,19 @@ app.include_router(admin.router)
 @app.get("/")
 def root():
     return {"message": "Sistem Syntri API"}
+
+
+@app.get("/health")
+def health_check():
+    """Chequeo de salud: confirma que la API responde y que la base de datos está accesible."""
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Health check falló → {e}")
+        return JSONResponse(status_code=503, content={"status": "error", "detail": "Base de datos no disponible"})
+
+    return {"status": "ok"}

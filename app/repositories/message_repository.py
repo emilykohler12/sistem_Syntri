@@ -44,11 +44,14 @@ class MessageRepository:
         service: str | None = None,
         from_date: str | None = None,
         to_date: str | None = None,
-    ) -> list[models.Message]:
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[models.Message], int]:
         query = self.db.query(models.Message).filter(
             models.Message.user_id == user_id
         )
-        return self._apply_filters(query, status, service, from_date, to_date).all()
+        query = self._apply_filters(query, status, service, from_date, to_date)
+        return self._paginate(query, page, limit)
 
     def get_all_messages(
         self,
@@ -56,9 +59,12 @@ class MessageRepository:
         service: str | None = None,
         from_date: str | None = None,
         to_date: str | None = None,
-    ) -> list[models.Message]:
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[models.Message], int]:
         query = self.db.query(models.Message)
-        return self._apply_filters(query, status, service, from_date, to_date).all()
+        query = self._apply_filters(query, status, service, from_date, to_date)
+        return self._paginate(query, page, limit)
 
     def _apply_filters(self, query, status, service, from_date, to_date):
         if from_date:
@@ -71,7 +77,21 @@ class MessageRepository:
                 query = query.filter(models.MessageDelivery.service == service)
             if status:
                 query = query.filter(models.MessageDelivery.status == status)
+            # El join puede repetir un mismo mensaje si tiene varias deliveries
+            # que matchean el filtro (p. ej. status=failed con slack y discord
+            # fallidos): sin distinct(), aparecería duplicado en la página.
+            query = query.distinct()
         return query
+
+    def _paginate(self, query, page: int, limit: int) -> tuple[list[models.Message], int]:
+        total = query.order_by(None).count()
+        items = (
+            query.order_by(models.Message.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+        return items, total
 
     def count_messages_by_user(self, user_id: int) -> int:
         return self.db.query(func.count(models.Message.id)).filter(

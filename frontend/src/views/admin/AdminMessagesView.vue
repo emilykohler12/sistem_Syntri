@@ -2,8 +2,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api, extractErrorMessage } from '@/lib/api'
 import { useToast } from '@/stores/toast'
-import type { AdminMessage, MessageFilters } from '@/types'
+import type { AdminMessage, MessageFilters, Paginated } from '@/types'
 import StatusBadge from '@/components/StatusBadge.vue'
+import Pagination from '@/components/Pagination.vue'
 
 const toast = useToast()
 
@@ -16,20 +17,36 @@ const filters = reactive<MessageFilters>({
 
 const messages = ref<AdminMessage[]>([])
 const loading = ref(false)
+const page = ref(1)
+const limit = 20
+const total = ref(0)
 
 async function loadMessages() {
   loading.value = true
   try {
-    const params = Object.fromEntries(
-      Object.entries(filters).filter(([, value]) => value),
-    )
-    const { data } = await api.get<AdminMessage[]>('/api/v1/admin/messages', { params })
-    messages.value = data
+    const params = {
+      ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
+      page: page.value,
+      limit,
+    }
+    const { data } = await api.get<Paginated<AdminMessage>>('/api/v1/admin/messages', { params })
+    messages.value = data.items
+    total.value = data.total
   } catch (err) {
     toast.error(extractErrorMessage(err, 'No se pudieron cargar los mensajes.'))
   } finally {
     loading.value = false
   }
+}
+
+function handleFilter() {
+  page.value = 1
+  loadMessages()
+}
+
+function handlePageChange(newPage: number) {
+  page.value = newPage
+  loadMessages()
 }
 
 onMounted(loadMessages)
@@ -51,7 +68,7 @@ onMounted(loadMessages)
       </select>
       <input v-model="filters.from_date" type="date" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm" />
       <input v-model="filters.to_date" type="date" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm" />
-      <button class="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg)]" @click="loadMessages">
+      <button class="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg)]" @click="handleFilter">
         Filtrar
       </button>
     </div>
@@ -86,5 +103,7 @@ onMounted(loadMessages)
         </div>
       </article>
     </div>
+
+    <Pagination :page="page" :limit="limit" :total="total" @update:page="handlePageChange" />
   </div>
 </template>

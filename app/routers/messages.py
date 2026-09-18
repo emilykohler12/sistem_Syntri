@@ -25,16 +25,18 @@ def send_message(
     )
 
 
-@router.get("/", response_model=list)
+@router.get("/")
 def get_my_messages(
     status: Optional[str] = Query(None, description="Filtrar por estado: success, pending, failed"),
     service: Optional[str] = Query(None, description="Filtrar por servicio: slack, discord"),
     from_date: Optional[str] = Query(None, description="Fecha desde (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(None, description="Fecha hasta (YYYY-MM-DD)"),
+    page: int = Query(1, ge=1, description="Número de página"),
+    limit: int = Query(20, ge=1, le=100, description="Resultados por página"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Usuario: lista sus propios mensajes con filtros"""
+    """Usuario: lista sus propios mensajes con filtros, paginado"""
     return MessageService(db).get_user_messages(
-        current_user.id, status, service, from_date, to_date
+        current_user.id, status, service, from_date, to_date, page, limit
     )

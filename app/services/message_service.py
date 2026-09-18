@@ -36,24 +36,36 @@ class MessageService:
         return config.daily_message_limit if config else 100
 
     def check_and_increment(self, user_id: int, limit: int) -> int:
+        """
+        Incrementa el contador de uso diario y recién ahí compara contra el
+        límite (en vez de leer el contador y decidir antes de incrementar).
+        Un SELECT previo + INSERT/UPDATE separado deja una ventana donde dos
+        requests concurrentes pueden leer el mismo valor y pasar los dos el
+        chequeo aunque el INSERT ... ON CONFLICT en sí sea atómico. Acá el
+        UPSERT con RETURNING hace las dos cosas en un solo statement: si el
+        nuevo valor se pasa del límite, se hace rollback (nunca se commitea)
+        y el intento no cuenta.
+        """
         today = date.today()
-        usage = self.msg_repo.get_daily_usage(user_id, today)
-        current_count = usage.message_count if usage else 0
 
-        if current_count >= limit:
+        result = self.db.execute(text("""
+            INSERT INTO daily_usage (user_id, usage_date, message_count)
+            VALUES (:uid, :today, 1)
+            ON CONFLICT (user_id, usage_date)
+            DO UPDATE SET message_count = daily_usage.message_count + 1
+            RETURNING message_count
+        """), {"uid": user_id, "today": today})
+        new_count = result.scalar()
+
+        if new_count > limit:
+            self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Límite diario de {limit} mensajes alcanzado. Volvé mañana."
             )
 
-        self.db.execute(text("""
-            INSERT INTO daily_usage (user_id, usage_date, message_count)
-            VALUES (:uid, :today, 1)
-            ON CONFLICT (user_id, usage_date)
-            DO UPDATE SET message_count = daily_usage.message_count + 1
-        """), {"uid": user_id, "today": today})
-
-        return current_count + 1
+        self.db.commit()
+        return new_count
 
     def send(
         self,
@@ -153,12 +165,18 @@ class MessageService:
     def get_user_messages(
         self, user_id: int,
         status: str | None, service: str | None,
-        from_date: str | None, to_date: str | None
-    ) -> list:
-        messages = self.msg_repo.get_messages_by_user(
-            user_id, status, service, from_date, to_date
+        from_date: str | None, to_date: str | None,
+        page: int = 1, limit: int = 20,
+    ) -> dict:
+        messages, total = self.msg_repo.get_messages_by_user(
+            user_id, status, service, from_date, to_date, page, limit
         )
-        return [self._format_message(m) for m in messages]
+        return {
+            "items": [self._format_message(m) for m in messages],
+            "total": total,
+            "page": page,
+            "limit": limit,
+        }
 
     def _format_message(self, msg: models.Message) -> dict:
         return {

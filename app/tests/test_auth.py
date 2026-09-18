@@ -103,3 +103,20 @@ def test_rutas_publicas_sin_token(client):
     # Login con credenciales válidas debe devolver 200 sin token
     r_login = client.post("/api/v1/auth/login", data={"username": "usuario_publico", "password": "pass123"})
     assert r_login.status_code == 200
+
+def test_health_check(client):
+    """/health responde 200 sin token y confirma que la base de datos está accesible"""
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_login_se_bloquea_tras_varios_intentos_fallidos(client):
+    """Tras 5 intentos fallidos seguidos, el login se bloquea aunque la contraseña sea correcta"""
+    client.post("/api/v1/auth/register", json={"username": "usuario_bloqueo", "password": "correcta123"})
+
+    for _ in range(5):
+        r = client.post("/api/v1/auth/login", data={"username": "usuario_bloqueo", "password": "incorrecta"})
+        assert r.status_code == 401
+
+    r_bloqueado = client.post("/api/v1/auth/login", data={"username": "usuario_bloqueo", "password": "correcta123"})
+    assert r_bloqueado.status_code == 429

@@ -54,6 +54,13 @@ export interface MessageFilters {
   to_date?: string
 }
 
+export interface Paginated<T> {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+}
+
 export interface UserMetric {
   user_id: number
   username: string

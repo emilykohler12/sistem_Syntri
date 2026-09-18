@@ -18,11 +18,13 @@ def get_all_messages(
     service: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
+    page: int = Query(1, ge=1, description="Número de página"),
+    limit: int = Query(20, ge=1, le=100, description="Resultados por página"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_admin)
 ):
-    """Admin: lista todos los mensajes con filtros"""
-    return AdminService(db).get_all_messages(status, service, from_date, to_date)
+    """Admin: lista todos los mensajes con filtros, paginado"""
+    return AdminService(db).get_all_messages(status, service, from_date, to_date, page, limit)
 
 
 # ── Métricas ──────────────────────────────────────────────────────────────────

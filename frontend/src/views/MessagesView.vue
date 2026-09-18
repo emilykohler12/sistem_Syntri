@@ -2,8 +2,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api, extractErrorMessage } from '@/lib/api'
 import { useToast } from '@/stores/toast'
-import { AVAILABLE_DESTINATIONS, type Message, type MessageFilters } from '@/types'
+import { AVAILABLE_DESTINATIONS, type Message, type MessageFilters, type Paginated } from '@/types'
 import StatusBadge from '@/components/StatusBadge.vue'
+import Pagination from '@/components/Pagination.vue'
 
 const toast = useToast()
 
@@ -20,6 +21,9 @@ const filters = reactive<MessageFilters>({
 
 const messages = ref<Message[]>([])
 const loading = ref(false)
+const page = ref(1)
+const limit = 20
+const total = ref(0)
 
 function toggleDestination(dest: string) {
   const idx = selectedDestinations.value.indexOf(dest)
@@ -33,16 +37,29 @@ function toggleDestination(dest: string) {
 async function loadMessages() {
   loading.value = true
   try {
-    const params = Object.fromEntries(
-      Object.entries(filters).filter(([, value]) => value),
-    )
-    const { data } = await api.get<Message[]>('/api/v1/messages/', { params })
-    messages.value = data
+    const params = {
+      ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
+      page: page.value,
+      limit,
+    }
+    const { data } = await api.get<Paginated<Message>>('/api/v1/messages/', { params })
+    messages.value = data.items
+    total.value = data.total
   } catch (err) {
     toast.error(extractErrorMessage(err, 'No se pudieron cargar los mensajes.'))
   } finally {
     loading.value = false
   }
+}
+
+function handleFilter() {
+  page.value = 1
+  loadMessages()
+}
+
+function handlePageChange(newPage: number) {
+  page.value = newPage
+  loadMessages()
 }
 
 async function handleSend() {
@@ -71,6 +88,7 @@ async function handleSend() {
       toast.success(`Mensaje enviado → ${summary}`)
     }
     content.value = ''
+    page.value = 1
     await loadMessages()
   } catch (err) {
     toast.error(extractErrorMessage(err, 'No se pudo enviar el mensaje.'))
@@ -140,7 +158,7 @@ onMounted(loadMessages)
         <input v-model="filters.to_date" type="date" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm" />
         <button
           class="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-surface)]"
-          @click="loadMessages"
+          @click="handleFilter"
         >
           Filtrar
         </button>
@@ -174,6 +192,8 @@ onMounted(loadMessages)
           </div>
         </article>
       </div>
+
+      <Pagination :page="page" :limit="limit" :total="total" @update:page="handlePageChange" />
     </section>
   </div>
 </template>

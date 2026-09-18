@@ -25,20 +25,25 @@ class AdminService:
 
     # ── Mensajes ──────────────────────────────────────────────────────────────
 
-    def get_all_messages(self, status, service, from_date, to_date) -> list:
-        messages = self.msg_repo.get_all_messages(status, service, from_date, to_date)
-        return [
-            {
-                "id": m.id, "user": m.user.username, "content": m.content,
-                "created_at": m.created_at,
-                "deliveries": [
-                    {"service": d.service, "status": d.status,
-                     "provider_response": d.provider_response}
-                    for d in m.deliveries
-                ]
-            }
-            for m in messages
-        ]
+    def get_all_messages(self, status, service, from_date, to_date, page: int = 1, limit: int = 20) -> dict:
+        messages, total = self.msg_repo.get_all_messages(status, service, from_date, to_date, page, limit)
+        return {
+            "items": [
+                {
+                    "id": m.id, "user": m.user.username, "content": m.content,
+                    "created_at": m.created_at,
+                    "deliveries": [
+                        {"service": d.service, "status": d.status,
+                         "provider_response": d.provider_response}
+                        for d in m.deliveries
+                    ]
+                }
+                for m in messages
+            ],
+            "total": total,
+            "page": page,
+            "limit": limit,
+        }
 
     # ── Métricas ──────────────────────────────────────────────────────────────
 
