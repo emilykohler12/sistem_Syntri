@@ -122,7 +122,9 @@ python -c "import secrets; print(secrets.token_hex(32))"
 alembic upgrade head
 ```
 
-### 5. Crear el usuario admin inicial
+### 5. Usuario admin inicial
+
+La app lo crea sola la primera vez que arranca (no hace falta correr nada a mano, ni tener acceso a una shell en el hosting). Si querés forzarlo manualmente igual podés correr:
 
 ```bash
 python create_admin.py
@@ -132,7 +134,7 @@ Credenciales por defecto:
 - **Email:** `admin@syntri.local`
 - **Contraseña:** `admin123`
 
-> Se recomienda cambiar la contraseña después del primer login.
+Se pueden cambiar antes del primer deploy con las variables `ADMIN_EMAIL` y `ADMIN_PASSWORD`. Se recomienda cambiar la contraseña después del primer login si se dejaron las de por defecto.
 
 ### 6. Levantar la aplicación
 

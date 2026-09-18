@@ -5,6 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 from app.database import engine, Base, SessionLocal
 from app.routers import auth, messages, admin
+from app.seed_admin import create_admin_if_missing
 from jose import JWTError, jwt
 from dotenv import load_dotenv
 import logging
@@ -49,6 +50,7 @@ if _missing_env_vars:
     )
 
 Base.metadata.create_all(bind=engine)
+create_admin_if_missing()
 
 # En producción Swagger y Redoc se desactivan para no exponer la API públicamente
 # Para volver a activarlos temporalmente, cambiá ENVIRONMENT=development
