@@ -1,0 +1,14 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+frontend
+logs
+*.db
+.env
+.env.*
+!.env.example
+.vscode
+.claude
+README.md
