@@ -36,6 +36,15 @@ body {
   min-height: 100vh;
 }
 
+/* Mano solo en botones reales; los links de navegación (NavBar) la sacan
+   explícitamente con .cursor-default */
+button:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

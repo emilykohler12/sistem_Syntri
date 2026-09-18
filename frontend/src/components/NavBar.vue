@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import logoIcon from '@/assets/logo-icon.png'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -15,18 +16,14 @@ function handleLogout() {
   <header class="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 backdrop-blur">
     <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
       <div class="flex items-center gap-8">
-        <router-link to="/" class="flex items-center gap-2 font-semibold text-[var(--color-text)]">
-          <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent)] text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="h-4.5 w-4.5">
-              <path d="M4 4l16 8-16 8 4-8-4-8z" fill="currentColor" />
-            </svg>
-          </span>
-          Sistem Syntri
+        <router-link to="/" class="cursor-default flex items-center gap-2 font-semibold text-[var(--color-text)]">
+          <img :src="logoIcon" alt="" class="h-8 w-8 rounded-lg" />
+          System Syntri
         </router-link>
         <nav class="flex items-center gap-1 text-sm">
           <router-link
             to="/"
-            class="px-3 py-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)]"
+            class="cursor-default px-3 py-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)]"
             active-class="!text-[var(--color-accent)] !bg-[var(--color-accent-soft)] font-medium"
             exact-active-class="!text-[var(--color-accent)] !bg-[var(--color-accent-soft)] font-medium"
           >
@@ -35,7 +32,7 @@ function handleLogout() {
           <router-link
             v-if="auth.isAdmin"
             to="/admin"
-            class="px-3 py-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)]"
+            class="cursor-default px-3 py-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)]"
             active-class="!text-[var(--color-accent)] !bg-[var(--color-accent-soft)] font-medium"
           >
             Admin
@@ -53,7 +50,7 @@ function handleLogout() {
           </span>
         </div>
         <button
-          class="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]"
+          class="cursor-pointer rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]"
           @click="handleLogout"
         >
           Salir

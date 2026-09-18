@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import logoIcon from '@/assets/logo-icon.png'
+
 defineProps<{
   title: string
   subtitle: string
@@ -18,11 +20,7 @@ defineProps<{
 
     <div class="relative w-full max-w-sm">
       <div class="flex flex-col items-center text-center mb-7">
-        <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-accent)] text-white shadow-lg shadow-[var(--color-accent)]/20 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="h-6 w-6">
-            <path d="M4 4l16 8-16 8 4-8-4-8z" fill="currentColor" />
-          </svg>
-        </span>
+        <img :src="logoIcon" alt="System Syntri" class="h-16 w-16 rounded-2xl shadow-lg shadow-black/10 mb-4" />
         <h1 class="text-2xl font-semibold text-[var(--color-text)]">{{ title }}</h1>
         <p class="text-sm text-[var(--color-text-muted)] mt-1.5">{{ subtitle }}</p>
       </div>
@@ -32,7 +30,7 @@ defineProps<{
       </div>
 
       <p class="text-center text-xs text-[var(--color-text-muted)] mt-6">
-        Sistem Syntri — notificaciones centralizadas a Slack y Discord
+        System Syntri — notificaciones centralizadas
       </p>
     </div>
   </div>

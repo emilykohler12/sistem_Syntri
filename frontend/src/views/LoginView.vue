@@ -30,7 +30,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <AuthShell title="Bienvenido de nuevo" subtitle="Iniciá sesión para seguir enviando notificaciones">
+  <AuthShell title="Bienvenido" subtitle="Iniciá sesión para seguir enviando notificaciones">
     <form class="space-y-4" @submit.prevent="handleSubmit">
       <div v-if="error" class="rounded-lg bg-[var(--color-danger-soft)] text-[var(--color-danger)] text-sm px-3 py-2.5">
         {{ error }}
