@@ -92,11 +92,9 @@ ENVIRONMENT=development
 
 # Opcionales: sin esto, el código de recuperación de contraseña
 # queda logueado en la consola del servidor en vez de enviarse por email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=tu_email@gmail.com
-SMTP_PASSWORD=tu_contraseña_de_aplicación
-SMTP_FROM=tu_email@gmail.com
+BREVO_API_KEY=tu_api_key_de_brevo
+BREVO_FROM_EMAIL=tu_email_verificado@ejemplo.com
+BREVO_FROM_NAME=System Syntri
 ```
 
 <details>
