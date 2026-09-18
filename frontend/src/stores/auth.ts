@@ -14,7 +14,7 @@ function decodeJwt(token: string): JwtPayload | null {
 
 interface AuthState {
   token: string | null
-  username: string | null
+  email: string | null
   role: string | null
 }
 
@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', {
     const valid = payload && payload.exp * 1000 > Date.now()
     return {
       token: valid ? token : null,
-      username: valid ? payload!.sub : null,
+      email: valid ? payload!.sub : null,
       role: valid ? payload!.role : null,
     }
   },
@@ -36,9 +36,11 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    async login(username: string, password: string) {
+    async login(email: string, password: string) {
+      // El backend usa OAuth2PasswordRequestForm, que siempre llama al campo
+      // "username" por espec — acá viaja el email igual.
       const form = new URLSearchParams()
-      form.set('username', username)
+      form.set('username', email)
       form.set('password', password)
       const { data } = await api.post('/api/v1/auth/login', form, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -46,8 +48,16 @@ export const useAuthStore = defineStore('auth', {
       this.applyToken(data.access_token)
     },
 
-    async register(username: string, password: string) {
-      await api.post('/api/v1/auth/register', { username, password })
+    async register(email: string, password: string) {
+      await api.post('/api/v1/auth/register', { email, password })
+    },
+
+    async forgotPassword(email: string) {
+      await api.post('/api/v1/auth/forgot-password', { email })
+    },
+
+    async resetPassword(email: string, code: string, newPassword: string) {
+      await api.post('/api/v1/auth/reset-password', { email, code, new_password: newPassword })
     },
 
     applyToken(token: string) {
@@ -55,14 +65,14 @@ export const useAuthStore = defineStore('auth', {
       if (!payload) throw new Error('Token inválido recibido del servidor.')
       setToken(token)
       this.token = token
-      this.username = payload.sub
+      this.email = payload.sub
       this.role = payload.role
     },
 
     logout() {
       clearToken()
       this.token = null
-      this.username = null
+      this.email = null
       this.role = null
     },
   },

@@ -64,6 +64,7 @@ def admin_user(client):
     admin_role = db.query(models.Role).filter(models.Role.name == "admin").first()
     admin = models.User(
         username="admin_test",
+        email="admin_test",
         password=hash_password("admin123"),
         role_id=admin_role.id
     )
@@ -75,7 +76,7 @@ def admin_user(client):
 
 @pytest.fixture
 def user_token(client):
-    client.post("/api/v1/auth/register", json={"username": "testuser", "password": "test123"})
+    client.post("/api/v1/auth/register", json={"email": "testuser", "password": "test123"})
     response = client.post("/api/v1/auth/login", data={"username": "testuser", "password": "test123"})
     return response.json()["access_token"]
 

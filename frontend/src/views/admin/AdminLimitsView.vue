@@ -109,7 +109,7 @@ onMounted(loadAll)
           <table class="w-full text-sm">
             <thead class="text-left text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
               <tr>
-                <th class="px-4 py-2 font-medium">Usuario</th>
+                <th class="px-4 py-2 font-medium">Email</th>
                 <th class="px-4 py-2 font-medium">Límite efectivo</th>
                 <th class="px-4 py-2 font-medium">Límite personalizado</th>
                 <th class="px-4 py-2 font-medium text-right">Acciones</th>

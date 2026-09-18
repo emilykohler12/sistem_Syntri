@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date
+from datetime import date, datetime, timedelta
 from app import models
 
 
@@ -67,10 +67,7 @@ class MessageRepository:
         return self._paginate(query, page, limit)
 
     def _apply_filters(self, query, status, service, from_date, to_date):
-        if from_date:
-            query = query.filter(models.Message.created_at >= from_date)
-        if to_date:
-            query = query.filter(models.Message.created_at <= to_date)
+        query = self._filter_by_date_range(query, from_date, to_date)
         if service or status:
             query = query.join(models.MessageDelivery)
             if service:
@@ -92,6 +89,18 @@ class MessageRepository:
             .all()
         )
         return items, total
+
+    def _filter_by_date_range(self, query, from_date: str | None, to_date: str | None):
+        if from_date:
+            query = query.filter(models.Message.created_at >= from_date)
+        if to_date:
+            # to_date llega como "YYYY-MM-DD" (sin hora): comparar created_at
+            # <= to_date excluía cualquier mensaje de ese mismo día con hora
+            # después de las 00:00:00. Sumamos un día y comparamos con "<"
+            # para que el día completo quede incluido.
+            to_date_exclusive = datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1)
+            query = query.filter(models.Message.created_at < to_date_exclusive)
+        return query
 
     def count_messages_by_user(self, user_id: int) -> int:
         return self.db.query(func.count(models.Message.id)).filter(
@@ -121,10 +130,7 @@ class MessageRepository:
             func.date(models.Message.created_at).label("dia"),
             func.count(models.Message.id).label("total_mensajes")
         ).group_by(func.date(models.Message.created_at))
-        if from_date:
-            query = query.filter(models.Message.created_at >= from_date)
-        if to_date:
-            query = query.filter(models.Message.created_at <= to_date)
+        query = self._filter_by_date_range(query, from_date, to_date)
         return query.order_by(func.date(models.Message.created_at).desc()).all()
 
     def count_deliveries_by_date_and_status(self, day, status: str) -> int:

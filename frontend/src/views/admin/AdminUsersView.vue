@@ -75,7 +75,7 @@ onMounted(loadUsers)
       <table class="w-full text-sm">
         <thead class="text-left text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
           <tr>
-            <th class="px-4 py-2 font-medium">Usuario</th>
+            <th class="px-4 py-2 font-medium">Email</th>
             <th class="px-4 py-2 font-medium">Rol</th>
             <th class="px-4 py-2 font-medium">Estado</th>
             <th class="px-4 py-2 font-medium text-right">Acciones</th>
@@ -102,8 +102,8 @@ onMounted(loadUsers)
                 </button>
                 <button
                   v-if="u.is_active"
-                  :disabled="actingOn === u.username || u.username === auth.username"
-                  :title="u.username === auth.username ? 'No podés cancelar tu propia cuenta' : ''"
+                  :disabled="actingOn === u.username || u.username === auth.email"
+                  :title="u.username === auth.email ? 'No podés cancelar tu propia cuenta' : ''"
                   class="rounded-md border border-[var(--color-danger)]/30 text-[var(--color-danger)] px-2.5 py-1 text-xs hover:bg-[var(--color-danger-soft)] disabled:opacity-50"
                   @click="cancel(u.username)"
                 >

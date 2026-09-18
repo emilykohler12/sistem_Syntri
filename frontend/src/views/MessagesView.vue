@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { api, extractErrorMessage } from '@/lib/api'
 import { useToast } from '@/stores/toast'
 import { AVAILABLE_DESTINATIONS, type Message, type MessageFilters, type Paginated } from '@/types'
 import StatusBadge from '@/components/StatusBadge.vue'
+import ServiceIcon from '@/components/ServiceIcon.vue'
 import Pagination from '@/components/Pagination.vue'
+import MessageFilterBar from '@/components/MessageFilterBar.vue'
 
 const toast = useToast()
 
@@ -52,10 +54,14 @@ async function loadMessages() {
   }
 }
 
-function handleFilter() {
-  page.value = 1
-  loadMessages()
-}
+watch(
+  filters,
+  () => {
+    page.value = 1
+    loadMessages()
+  },
+  { deep: true },
+)
 
 function handlePageChange(newPage: number) {
   page.value = newPage
@@ -101,91 +107,75 @@ onMounted(loadMessages)
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto px-4 py-8 space-y-8">
-    <section class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 shadow-sm space-y-4">
-      <h2 class="text-lg font-semibold">Enviar mensaje</h2>
+  <div class="max-w-3xl mx-auto px-4 py-8 space-y-6">
+    <section class="card p-6 space-y-4">
+      <div>
+        <h2 class="text-base font-semibold text-[var(--color-text)]">Enviar mensaje</h2>
+        <p class="text-sm text-[var(--color-text-muted)]">Se envía firmado con tu cuenta a los destinos que elijas.</p>
+      </div>
 
       <textarea
         v-model="content"
         rows="3"
         placeholder="Escribí tu mensaje…"
-        class="w-full rounded-md border border-[var(--color-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+        class="input resize-none"
       />
 
-      <div class="flex items-center gap-4">
-        <span class="text-sm font-medium text-[var(--color-text-muted)]">Destinos:</span>
-        <label
+      <div class="flex flex-wrap items-center gap-2">
+        <button
           v-for="dest in AVAILABLE_DESTINATIONS"
           :key="dest"
-          class="flex items-center gap-2 text-sm cursor-pointer capitalize"
+          type="button"
+          class="flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm capitalize transition-colors"
+          :class="selectedDestinations.includes(dest)
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)] font-medium'
+            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg)]'"
+          @click="toggleDestination(dest)"
         >
-          <input
-            type="checkbox"
-            :checked="selectedDestinations.includes(dest)"
-            @change="toggleDestination(dest)"
-          />
+          <ServiceIcon :service="dest" />
           {{ dest }}
-        </label>
+        </button>
       </div>
 
-      <button
-        :disabled="sending"
-        class="rounded-md bg-[var(--color-accent)] text-white px-4 py-2 text-sm font-medium hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
-        @click="handleSend"
-      >
-        {{ sending ? 'Enviando…' : 'Enviar' }}
-      </button>
+      <div class="flex justify-end">
+        <button :disabled="sending" class="btn-primary" @click="handleSend">
+          {{ sending ? 'Enviando…' : 'Enviar' }}
+        </button>
+      </div>
     </section>
 
     <section class="space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">Mis mensajes</h2>
+        <h2 class="text-base font-semibold text-[var(--color-text)]">Mis mensajes</h2>
+        <span v-if="total > 0" class="text-xs text-[var(--color-text-muted)]">{{ total }} en total</span>
       </div>
 
-      <div class="flex flex-wrap gap-2">
-        <select v-model="filters.status" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm">
-          <option value="">Todos los estados</option>
-          <option value="success">Éxito</option>
-          <option value="failed">Fallido</option>
-          <option value="pending">Pendiente</option>
-        </select>
-        <select v-model="filters.service" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm">
-          <option value="">Todos los servicios</option>
-          <option value="slack">Slack</option>
-          <option value="discord">Discord</option>
-        </select>
-        <input v-model="filters.from_date" type="date" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm" />
-        <input v-model="filters.to_date" type="date" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm" />
-        <button
-          class="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-surface)]"
-          @click="handleFilter"
-        >
-          Filtrar
-        </button>
-      </div>
+      <MessageFilterBar v-model="filters" />
 
-      <p v-if="loading" class="text-sm text-[var(--color-text-muted)]">Cargando…</p>
-      <p v-else-if="messages.length === 0" class="text-sm text-[var(--color-text-muted)]">Todavía no enviaste mensajes.</p>
+      <p v-if="loading" class="text-sm text-[var(--color-text-muted)] py-6 text-center">Cargando…</p>
+      <div v-else-if="messages.length === 0" class="card py-12 text-center">
+        <p class="text-sm text-[var(--color-text-muted)]">Todavía no hay mensajes que coincidan.</p>
+      </div>
 
       <div v-else class="space-y-3">
         <article
           v-for="msg in messages"
           :key="msg.id"
-          class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 space-y-2"
+          class="card p-4 space-y-2.5"
         >
-          <div class="flex items-center justify-between">
-            <p class="text-sm">{{ msg.content }}</p>
-            <span class="text-xs text-[var(--color-text-muted)] whitespace-nowrap ml-4">
+          <div class="flex items-start justify-between gap-4">
+            <p class="text-sm text-[var(--color-text)] leading-relaxed">{{ msg.content }}</p>
+            <span class="text-xs text-[var(--color-text-muted)] whitespace-nowrap shrink-0">
               {{ new Date(msg.created_at).toLocaleString() }}
             </span>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex flex-wrap gap-3 pt-1 border-t border-[var(--color-border)] -mx-4 px-4 pt-2.5">
             <div
               v-for="(delivery, i) in msg.deliveries"
               :key="i"
               class="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]"
             >
-              <span class="capitalize font-medium text-[var(--color-text)]">{{ delivery.service }}</span>
+              <ServiceIcon :service="delivery.service" />
               <StatusBadge :status="delivery.status" />
               <span v-if="delivery.attempt > 1">(intento {{ delivery.attempt }})</span>
             </div>

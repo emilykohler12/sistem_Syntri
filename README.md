@@ -75,6 +75,14 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 DISCORD_BOT_TOKEN=tu_token
 DISCORD_CHANNEL_ID=tu_channel_id
 ENVIRONMENT=development
+
+# Opcionales: si no se configuran, el código de recuperación de contraseña
+# queda logueado en la consola del servidor en vez de enviarse por email
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tu_email@gmail.com
+SMTP_PASSWORD=tu_contraseña_de_aplicación
+SMTP_FROM=tu_email@gmail.com
 ```
 
 > Para generar una `SECRET_KEY` segura:
@@ -95,7 +103,7 @@ python create_admin.py
 ```
 
 Credenciales por defecto:
-- **Usuario:** `admin`
+- **Email:** `admin@syntri.local`
 - **Contraseña:** `admin123`
 
 > Se recomienda cambiar la contraseña después del primer login.
@@ -145,15 +153,17 @@ Queda disponible en `http://localhost:5173`. Incluye login/registro, envío de m
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `POST` | `/api/v1/auth/register` | Registrar nuevo usuario |
-| `POST` | `/api/v1/auth/login` | Iniciar sesión (devuelve JWT) |
+| `POST` | `/api/v1/auth/register` | Registrar nuevo usuario (con email) |
+| `POST` | `/api/v1/auth/login` | Iniciar sesión con email (devuelve JWT) |
+| `POST` | `/api/v1/auth/forgot-password` | Pedir código de 6 dígitos por email |
+| `POST` | `/api/v1/auth/reset-password` | Cambiar contraseña con el código |
 
 ### Mensajes
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | `POST` | `/api/v1/messages/` | Enviar mensaje a Discord y/o Slack |
-| `GET` | `/api/v1/messages/` | Listar mis mensajes con filtros |
+| `GET` | `/api/v1/messages/` | Listar mis mensajes con filtros, paginado |
 
 ### Admin
 

@@ -14,6 +14,11 @@ class UserRepository:
             models.User.username == username
         ).first()
 
+    def get_by_email(self, email: str) -> models.User | None:
+        return self.db.query(models.User).filter(
+            models.User.email == email
+        ).first()
+
     def get_by_id(self, user_id: int) -> models.User | None:
         return self.db.query(models.User).filter(
             models.User.id == user_id
@@ -22,9 +27,10 @@ class UserRepository:
     def get_all(self) -> list[models.User]:
         return self.db.query(models.User).all()
 
-    def create(self, username: str, password: str, role_id: int) -> models.User:
+    def create(self, username: str, email: str, password: str, role_id: int) -> models.User:
         user = models.User(
             username=username,
+            email=email,
             password=hash_password(password),
             role_id=role_id
         )
@@ -66,3 +72,36 @@ class UserRepository:
         return self.db.query(models.User).filter(
             models.User.role_id == role_id
         ).count()
+
+    # ── Recuperación de contraseña ───────────────────────────────────────────
+
+    def create_reset_code(self, user_id: int, code_hash: str, expires_at) -> models.PasswordResetCode:
+        # Invalida cualquier código anterior sin usar: solo el último pedido sirve
+        self.db.query(models.PasswordResetCode).filter(
+            models.PasswordResetCode.user_id == user_id,
+            models.PasswordResetCode.used == 0
+        ).update({"used": 1})
+
+        reset_code = models.PasswordResetCode(
+            user_id=user_id, code_hash=code_hash, expires_at=expires_at
+        )
+        self.db.add(reset_code)
+        self.db.commit()
+        self.db.refresh(reset_code)
+        return reset_code
+
+    def get_active_reset_code(self, user_id: int) -> models.PasswordResetCode | None:
+        return self.db.query(models.PasswordResetCode).filter(
+            models.PasswordResetCode.user_id == user_id,
+            models.PasswordResetCode.used == 0
+        ).order_by(models.PasswordResetCode.created_at.desc()).first()
+
+    def mark_reset_code_used(self, reset_code: models.PasswordResetCode) -> None:
+        reset_code.used = 1
+        self.db.commit()
+
+    def update_password(self, user: models.User, new_password: str) -> models.User:
+        user.password = hash_password(new_password)
+        self.db.commit()
+        self.db.refresh(user)
+        return user

@@ -76,7 +76,7 @@ def test_success_rate(client, admin_token, user_token):
 # ── Gestión de usuarios ───────────────────────────────────────────────────────
 
 def test_cancelar_usuario(client, admin_token):
-    client.post("/api/v1/auth/register", json={"username": "usuario_a_cancelar", "password": "pass123"})
+    client.post("/api/v1/auth/register", json={"email": "usuario_a_cancelar", "password": "pass123"})
     response = client.patch(
         "/api/v1/admin/users/usuario_a_cancelar/cancel",
         headers={"Authorization": f"Bearer {admin_token}"}
@@ -100,7 +100,7 @@ def test_cancelar_propio_usuario_admin(client, admin_token):
     assert response.status_code == 400
 
 def test_reactivar_usuario(client, admin_token):
-    client.post("/api/v1/auth/register", json={"username": "usuario_reactivar", "password": "pass123"})
+    client.post("/api/v1/auth/register", json={"email": "usuario_reactivar", "password": "pass123"})
     client.patch("/api/v1/admin/users/usuario_reactivar/cancel", headers={"Authorization": f"Bearer {admin_token}"})
     response = client.patch(
         "/api/v1/admin/users/usuario_reactivar/reactivate",
@@ -110,7 +110,7 @@ def test_reactivar_usuario(client, admin_token):
     assert response.json()["is_active"] == True
 
 def test_reactivar_usuario_ya_activo(client, admin_token):
-    client.post("/api/v1/auth/register", json={"username": "usuario_activo", "password": "pass123"})
+    client.post("/api/v1/auth/register", json={"email": "usuario_activo", "password": "pass123"})
     response = client.patch(
         "/api/v1/admin/users/usuario_activo/reactivate",
         headers={"Authorization": f"Bearer {admin_token}"}

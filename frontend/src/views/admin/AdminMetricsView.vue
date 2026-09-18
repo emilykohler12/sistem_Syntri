@@ -81,7 +81,7 @@ onMounted(loadMetrics)
         <table class="w-full text-sm">
           <thead class="text-left text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
             <tr>
-              <th class="px-4 py-2 font-medium">Usuario</th>
+              <th class="px-4 py-2 font-medium">Email</th>
               <th class="px-4 py-2 font-medium">Rol</th>
               <th class="px-4 py-2 font-medium">Estado</th>
               <th class="px-4 py-2 font-medium">Límite diario</th>

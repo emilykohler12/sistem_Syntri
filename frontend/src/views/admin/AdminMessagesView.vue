@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { api, extractErrorMessage } from '@/lib/api'
 import { useToast } from '@/stores/toast'
 import type { AdminMessage, MessageFilters, Paginated } from '@/types'
 import StatusBadge from '@/components/StatusBadge.vue'
+import ServiceIcon from '@/components/ServiceIcon.vue'
 import Pagination from '@/components/Pagination.vue'
+import MessageFilterBar from '@/components/MessageFilterBar.vue'
 
 const toast = useToast()
 
@@ -39,10 +41,14 @@ async function loadMessages() {
   }
 }
 
-function handleFilter() {
-  page.value = 1
-  loadMessages()
-}
+watch(
+  filters,
+  () => {
+    page.value = 1
+    loadMessages()
+  },
+  { deep: true },
+)
 
 function handlePageChange(newPage: number) {
   page.value = newPage
@@ -54,50 +60,38 @@ onMounted(loadMessages)
 
 <template>
   <div class="space-y-4">
-    <div class="flex flex-wrap gap-2">
-      <select v-model="filters.status" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm">
-        <option value="">Todos los estados</option>
-        <option value="success">Éxito</option>
-        <option value="failed">Fallido</option>
-        <option value="pending">Pendiente</option>
-      </select>
-      <select v-model="filters.service" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm">
-        <option value="">Todos los servicios</option>
-        <option value="slack">Slack</option>
-        <option value="discord">Discord</option>
-      </select>
-      <input v-model="filters.from_date" type="date" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm" />
-      <input v-model="filters.to_date" type="date" class="rounded-md border border-[var(--color-border)] px-2 py-1.5 text-sm" />
-      <button class="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg)]" @click="handleFilter">
-        Filtrar
-      </button>
+    <div class="flex items-center justify-between">
+      <MessageFilterBar v-model="filters" />
+      <span v-if="total > 0" class="text-xs text-[var(--color-text-muted)] shrink-0 ml-4">{{ total }} en total</span>
     </div>
 
-    <p v-if="loading" class="text-sm text-[var(--color-text-muted)]">Cargando…</p>
-    <p v-else-if="messages.length === 0" class="text-sm text-[var(--color-text-muted)]">No hay mensajes que coincidan.</p>
+    <p v-if="loading" class="text-sm text-[var(--color-text-muted)] py-6 text-center">Cargando…</p>
+    <div v-else-if="messages.length === 0" class="card py-12 text-center">
+      <p class="text-sm text-[var(--color-text-muted)]">No hay mensajes que coincidan.</p>
+    </div>
 
     <div v-else class="space-y-3">
       <article
         v-for="msg in messages"
         :key="msg.id"
-        class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 space-y-2"
+        class="card p-4 space-y-2.5"
       >
-        <div class="flex items-center justify-between">
+        <div class="flex items-start justify-between gap-4">
           <div>
             <span class="text-xs font-medium text-[var(--color-accent)]">{{ msg.user }}</span>
-            <p class="text-sm">{{ msg.content }}</p>
+            <p class="text-sm text-[var(--color-text)] leading-relaxed">{{ msg.content }}</p>
           </div>
-          <span class="text-xs text-[var(--color-text-muted)] whitespace-nowrap ml-4">
+          <span class="text-xs text-[var(--color-text-muted)] whitespace-nowrap shrink-0">
             {{ new Date(msg.created_at).toLocaleString() }}
           </span>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-3 border-t border-[var(--color-border)] -mx-4 px-4 pt-2.5">
           <div
             v-for="(delivery, i) in msg.deliveries"
             :key="i"
             class="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]"
           >
-            <span class="capitalize font-medium text-[var(--color-text)]">{{ delivery.service }}</span>
+            <ServiceIcon :service="delivery.service" />
             <StatusBadge :status="delivery.status" />
           </div>
         </div>

@@ -12,36 +12,48 @@ function handleLogout() {
 </script>
 
 <template>
-  <header class="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-    <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-      <div class="flex items-center gap-6">
-        <router-link to="/" class="font-semibold text-[var(--color-accent)]">Sistem Syntri</router-link>
-        <nav class="flex items-center gap-4 text-sm">
+  <header class="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 backdrop-blur">
+    <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-8">
+        <router-link to="/" class="flex items-center gap-2 font-semibold text-[var(--color-text)]">
+          <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent)] text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="h-4.5 w-4.5">
+              <path d="M4 4l16 8-16 8 4-8-4-8z" fill="currentColor" />
+            </svg>
+          </span>
+          Sistem Syntri
+        </router-link>
+        <nav class="flex items-center gap-1 text-sm">
           <router-link
             to="/"
-            class="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            active-class="!text-[var(--color-text)] font-medium"
-            exact-active-class="!text-[var(--color-text)] font-medium"
+            class="px-3 py-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)]"
+            active-class="!text-[var(--color-accent)] !bg-[var(--color-accent-soft)] font-medium"
+            exact-active-class="!text-[var(--color-accent)] !bg-[var(--color-accent-soft)] font-medium"
           >
             Mensajes
           </router-link>
           <router-link
             v-if="auth.isAdmin"
             to="/admin"
-            class="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            active-class="!text-[var(--color-text)] font-medium"
+            class="px-3 py-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)]"
+            active-class="!text-[var(--color-accent)] !bg-[var(--color-accent-soft)] font-medium"
           >
             Admin
           </router-link>
         </nav>
       </div>
       <div class="flex items-center gap-3 text-sm">
-        <span class="text-[var(--color-text-muted)]">
-          {{ auth.username }}
-          <span v-if="auth.isAdmin" class="ml-1 rounded bg-[var(--color-accent-soft)] px-1.5 py-0.5 text-xs text-[var(--color-accent)]">admin</span>
-        </span>
+        <div class="hidden sm:flex items-center gap-2 text-[var(--color-text-muted)]">
+          <span class="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent)] text-xs font-semibold uppercase">
+            {{ auth.email?.[0] ?? '?' }}
+          </span>
+          <span class="max-w-[180px] truncate">{{ auth.email }}</span>
+          <span v-if="auth.isAdmin" class="rounded-full bg-[var(--color-accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--color-accent)]">
+            admin
+          </span>
+        </div>
         <button
-          class="rounded-md border border-[var(--color-border)] px-3 py-1.5 hover:bg-[var(--color-bg)]"
+          class="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]"
           @click="handleLogout"
         >
           Salir

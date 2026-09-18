@@ -16,7 +16,7 @@ class RoleResponse(BaseModel):
 # ── Usuarios ──────────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):
-    username: str
+    email: str
     password: str
 
 class UserResponse(BaseModel):
@@ -24,6 +24,7 @@ class UserResponse(BaseModel):
 
     id: int
     username: str
+    email: str
     role: Optional[RoleResponse] = None
 
     # Alias para que FastAPI mapee role_rel → role
@@ -32,12 +33,24 @@ class UserResponse(BaseModel):
         return cls(
             id=user.id,
             username=user.username,
+            email=user.email,
             role=RoleResponse.model_validate(user.role_rel) if user.role_rel else None
         )
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+# ── Recuperación de contraseña ─────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str
 
 
 # ── Mensajes ──────────────────────────────────────────────────────────────────

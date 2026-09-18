@@ -42,6 +42,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     daily_limit = Column(Integer, nullable=True)
@@ -51,6 +52,7 @@ class User(Base):
     role_rel = relationship("Role", back_populates="users")
     messages = relationship("Message", back_populates="user")
     daily_usage = relationship("DailyUsage", back_populates="user")
+    reset_codes = relationship("PasswordResetCode", back_populates="user")
 
     @property
     def role_name(self) -> str:
@@ -121,3 +123,16 @@ class MessageDelivery(Base):
     attempt = Column(Integer, nullable=False, default=1)  # número de intento (1, 2, 3)
 
     message = relationship("Message", back_populates="deliveries")
+
+
+class PasswordResetCode(Base):
+    __tablename__ = "password_reset_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    code_hash = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User", back_populates="reset_codes")
